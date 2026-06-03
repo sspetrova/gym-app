@@ -8,17 +8,14 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 1,
-  themeColor: '#0d0d0d',
+  width: 'device-width', initialScale: 1, maximumScale: 1, themeColor: '#F0EEF8',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-[#0d0d0d] text-white antialiased">
-        <div className="max-w-md mx-auto min-h-screen relative flex flex-col">
+      <body style={{ background: '#F0EEF8', color: '#1a1530' }} className="antialiased">
+        <div className="max-w-md mx-auto min-h-screen flex flex-col">
           <main className="flex-1">{children}</main>
           <BottomNav />
         </div>

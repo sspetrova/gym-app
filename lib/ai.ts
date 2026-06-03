@@ -10,10 +10,7 @@ export async function generateWorkout(input: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   })
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Failed to generate workout: ${err}`)
-  }
+  if (!res.ok) throw new Error(`Failed to generate workout: ${await res.text()}`)
   return res.json()
 }
 
@@ -27,9 +24,6 @@ export async function substituteExercise(input: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   })
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Failed to substitute exercise: ${err}`)
-  }
+  if (!res.ok) throw new Error(`Failed to substitute: ${await res.text()}`)
   return res.json()
 }

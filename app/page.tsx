@@ -6,8 +6,54 @@ import { getWorkoutHistory, getPersonalRecords, seedDemoData } from '@/lib/stora
 import { getExerciseById } from '@/lib/exercises'
 import type { Workout } from '@/lib/types'
 
-const D = 'Barlow Condensed, sans-serif'
-const B = 'Barlow, sans-serif'
+// Week calendar strip
+function WeekStrip({ workouts }: { workouts: Workout[] }) {
+  const [selected, setSelected] = useState(6)
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - (6 - i))
+    const label = d.toLocaleDateString('en', { weekday: 'short' }).slice(0, 3)
+    const num = d.getDate()
+    const dateStr = d.toISOString().split('T')[0]
+    const trained = workouts.some(w => w.date.split('T')[0] === dateStr)
+    return { label, num, trained, isToday: i === 6 }
+  })
+  return (
+    <div className="flex gap-2 justify-between">
+      {days.map((d, i) => (
+        <button key={i} onClick={() => setSelected(i)}
+          className="btn-press flex-1 flex flex-col items-center gap-1.5 py-3 rounded-2xl transition-all duration-200 shadow-card"
+          style={{ background: selected === i ? '#7C5CBF' : '#fff' }}>
+          <span style={{ fontSize: '0.58rem', fontWeight: 700, color: selected === i ? 'rgba(255,255,255,0.6)' : '#C4C0D8', letterSpacing: '0.05em' }}>
+            {d.label.toUpperCase()}
+          </span>
+          <span style={{ fontSize: '1rem', fontWeight: 900, color: selected === i ? '#fff' : '#1a1530' }}>{d.num}</span>
+          <div style={{
+            width: 6, height: 6, borderRadius: '50%',
+            background: d.trained ? (selected === i ? 'rgba(255,255,255,0.8)' : '#4ADE80') : 'transparent'
+          }} />
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// PR Medal card
+function PRCard({ rank, exerciseName, weight, delay }: { rank: number; exerciseName: string; weight: number; delay: number }) {
+  const configs = [
+    { medal: '🥇', bg: 'linear-gradient(135deg,#F5A623,#F59E0B)', shadow: '0 8px 24px rgba(245,166,35,0.4)' },
+    { medal: '🥈', bg: 'linear-gradient(135deg,#9CA3AF,#6B7280)', shadow: '0 8px 24px rgba(156,163,175,0.4)' },
+    { medal: '🥉', bg: 'linear-gradient(135deg,#FB923C,#C2410C)', shadow: '0 8px 24px rgba(251,146,60,0.4)' },
+  ]
+  const c = configs[rank] ?? configs[2]
+  return (
+    <div className="animate-pop-in rounded-3xl p-5 flex flex-col items-center text-center flex-shrink-0"
+      style={{ opacity: 0, animationDelay: `${delay}ms`, background: c.bg, boxShadow: c.shadow, width: 150, minHeight: 160 }}>
+      <span className="animate-wobble" style={{ fontSize: '2.5rem', display: 'block', marginBottom: 8 }}>{c.medal}</span>
+      <p className="dc" style={{ fontSize: '1.8rem', color: '#fff', lineHeight: 1 }}>{weight}<span style={{ fontSize: '0.9rem', opacity: 0.8 }}> kg</span></p>
+      <p style={{ fontSize: '0.7rem', fontWeight: 700, color: 'rgba(255,255,255,0.75)', marginTop: 6, lineHeight: 1.3 }}>{exerciseName}</p>
+    </div>
+  )
+}
 
 export default function Dashboard() {
   const router = useRouter()
@@ -24,226 +70,197 @@ export default function Dashboard() {
 
   const lastWorkout = workouts[0]
   const totalVolume = lastWorkout
-    ? lastWorkout.exercises.reduce(
-        (s, ex) => s + ex.sets.filter((x) => x.completed).reduce((ss, set) => ss + set.weightKg * set.reps, 0), 0
-      )
+    ? lastWorkout.exercises.reduce((s, ex) => s + ex.sets.filter(x => x.completed).reduce((ss, set) => ss + set.weightKg * set.reps, 0), 0)
     : 0
 
   const topPrs = Object.entries(prs).sort(([, a], [, b]) => b - a).slice(0, 3)
 
   const daysThisWeek = (() => {
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 7)
-    return workouts.filter((w) => new Date(w.date) > cutoff).length
+    return workouts.filter(w => new Date(w.date) > cutoff).length
   })()
 
-  // Week dots
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(); d.setDate(d.getDate() - (6 - i))
-    const label = d.toLocaleDateString('en', { weekday: 'short' }).slice(0, 2).toUpperCase()
-    const dateStr = d.toISOString().split('T')[0]
-    const trained = workouts.some((w) => w.date.split('T')[0] === dateStr)
-    return { label, trained, isToday: i === 6 }
-  })
-
   const hour = new Date().getHours()
-  const greeting = hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : 'Evening'
+  const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening'
 
   if (!mounted) return (
-    <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center">
-      <div className="w-10 h-10 rounded-full border-2 border-[#00FF87] border-t-transparent animate-spin" />
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#F0EEF8' }}>
+      <div className="w-10 h-10 rounded-full animate-spin" style={{ border: '3px solid #7C5CBF', borderTopColor: 'transparent' }} />
     </div>
   )
 
   return (
-    <div className="min-h-screen bg-[#0d0d0d] px-4 pt-12 pb-28">
+    <div className="min-h-screen pb-28" style={{ background: '#F0EEF8' }}>
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-6 animate-slide-up" style={{ opacity: 0 }}>
-        <div>
-          <p style={{ fontFamily: B, fontSize: '0.8rem', color: '#555', marginBottom: 2 }}>
-            Good {greeting} 👋
-          </p>
-          <h1 style={{ fontFamily: D, fontSize: '2.6rem', fontWeight: 900, lineHeight: 1, letterSpacing: '0.02em' }}>
-            LET&apos;S TRAIN
-          </h1>
-        </div>
-        <div
-          className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl"
-          style={{ background: '#1e1e1e', border: '1px solid #252525' }}
-        >
-          🔥
-        </div>
-      </div>
-
-      {/* START WORKOUT — hero card */}
-      <button
-        onClick={() => router.push('/workout/new')}
-        className="btn-press w-full rounded-3xl mb-3 overflow-hidden relative animate-slide-up glow-green"
-        style={{ animationDelay: '60ms', opacity: 0, minHeight: 130 }}
-      >
-        <div
-          className="absolute inset-0"
-          style={{ background: 'linear-gradient(135deg, #00FF87 0%, #00e070 60%, #00c060 100%)' }}
-        />
-        {/* Decorative circle */}
-        <div
-          className="absolute -right-8 -top-8 w-32 h-32 rounded-full opacity-20"
-          style={{ background: '#fff' }}
-        />
-        <div
-          className="absolute -right-4 -bottom-6 w-20 h-20 rounded-full opacity-15"
-          style={{ background: '#000' }}
-        />
-        <div className="relative z-10 p-6 text-left">
-          <p style={{ fontFamily: B, fontSize: '0.75rem', color: 'rgba(0,0,0,0.5)', letterSpacing: '0.15em', marginBottom: 6 }}>
-            READY TO GO?
-          </p>
-          <p style={{ fontFamily: D, fontSize: '2.2rem', fontWeight: 900, color: '#000', letterSpacing: '0.03em', lineHeight: 1 }}>
-            START WORKOUT ⚡
-          </p>
-          <p style={{ fontFamily: B, fontSize: '0.8rem', color: 'rgba(0,0,0,0.5)', marginTop: 8 }}>
-            AI builds your session in seconds
-          </p>
-        </div>
-      </button>
-
-      {/* Bento row 1 — 2 equal cards */}
-      <div className="grid grid-cols-2 gap-3 mb-3 animate-slide-up" style={{ animationDelay: '110ms', opacity: 0 }}>
-        {/* Days this week */}
-        <div
-          className="rounded-3xl p-5 relative overflow-hidden"
-          style={{ background: '#1a1040', border: '1px solid #2a1a60', minHeight: 110 }}
-        >
-          <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full opacity-20" style={{ background: '#a78bfa' }} />
-          <p style={{ fontFamily: B, fontSize: '0.65rem', color: '#a78bfa', letterSpacing: '0.15em', marginBottom: 6 }}>THIS WEEK</p>
-          <p style={{ fontFamily: D, fontSize: '3rem', fontWeight: 900, color: '#a78bfa', lineHeight: 1 }}>{daysThisWeek}</p>
-          <p style={{ fontFamily: B, fontSize: '0.75rem', color: '#6040a0', marginTop: 4 }}>days trained</p>
-        </div>
-
-        {/* Last volume */}
-        <div
-          className="rounded-3xl p-5 relative overflow-hidden"
-          style={{ background: '#1a0f00', border: '1px solid #3a2000', minHeight: 110 }}
-        >
-          <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full opacity-20" style={{ background: '#fb923c' }} />
-          <p style={{ fontFamily: B, fontSize: '0.65rem', color: '#fb923c', letterSpacing: '0.15em', marginBottom: 6 }}>LAST VOL</p>
-          <p style={{ fontFamily: D, fontSize: lastWorkout && totalVolume > 999 ? '2.2rem' : '3rem', fontWeight: 900, color: '#fb923c', lineHeight: 1 }}>
-            {lastWorkout ? Math.round(totalVolume) : '—'}
-          </p>
-          <p style={{ fontFamily: B, fontSize: '0.75rem', color: '#6a3500', marginTop: 4 }}>kg lifted</p>
+      <div className="px-5 pt-12 pb-4">
+        <div className="flex items-center justify-between animate-slide-up" style={{ opacity: 0 }}>
+          <div>
+            <p style={{ fontSize: '0.8rem', color: '#9895B0', fontWeight: 600 }}>{greeting} 👋</p>
+            <h1 style={{ fontFamily: 'Nunito,sans-serif', fontSize: '1.8rem', fontWeight: 900, color: '#1a1530', lineHeight: 1.1, marginTop: 2 }}>
+              Ready to crush it?
+            </h1>
+          </div>
+          {/* Avatar bubble */}
+          <div className="w-12 h-12 rounded-full flex items-center justify-center text-2xl shadow-card animate-wobble"
+            style={{ background: '#fff' }}>
+            💪
+          </div>
         </div>
       </div>
 
-      {/* Week streak card */}
-      <div
-        className="rounded-3xl p-5 mb-3 animate-slide-up"
-        style={{ animationDelay: '165ms', opacity: 0, background: '#161616', border: '1px solid #252525' }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <p style={{ fontFamily: D, fontSize: '1rem', fontWeight: 700, letterSpacing: '0.06em' }}>WEEK STREAK</p>
-          <span
-            className="px-3 py-1 rounded-full text-black text-xs font-bold"
-            style={{ background: '#00FF87', fontFamily: D, letterSpacing: '0.06em' }}
-          >
-            {daysThisWeek}/7
-          </span>
-        </div>
-        <div className="flex gap-1.5">
-          {weekDays.map((d, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
-              <div
-                className="w-full rounded-xl transition-all duration-300"
-                style={{
-                  height: 36,
-                  background: d.trained ? '#00FF87' : d.isToday ? '#1e2e1e' : '#161616',
-                  border: d.isToday && !d.trained ? '1.5px solid #00FF87/30' : '1.5px solid transparent',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '0.7rem', fontFamily: D, fontWeight: 800,
-                  color: d.trained ? '#000' : '#333',
-                }}
-              >
-                {d.trained ? '✓' : ''}
-              </div>
-              <p style={{ fontFamily: B, fontSize: '0.55rem', color: '#333', letterSpacing: '0.05em' }}>{d.label}</p>
+      <div className="px-5 space-y-4">
+
+        {/* ── HERO — Daily Challenge card ── */}
+        <button onClick={() => router.push('/workout/new')}
+          className="btn-press w-full rounded-3xl overflow-hidden relative shadow-card-lg animate-slide-up"
+          style={{ opacity: 0, animationDelay: '60ms', background: 'linear-gradient(135deg,#7C5CBF 0%,#9B6FE0 50%,#A78BFA 100%)', minHeight: 160 }}>
+          {/* Floating shapes */}
+          <div className="absolute animate-float" style={{ top: -10, right: 20, fontSize: '4rem', opacity: 0.6 }}>🏋️</div>
+          <div className="absolute animate-float2" style={{ top: 30, right: 80, fontSize: '1.5rem', opacity: 0.4 }}>⚡</div>
+          <div className="absolute animate-bounce" style={{ bottom: 10, right: 15, fontSize: '2rem', opacity: 0.5 }}>🔥</div>
+          <div className="absolute w-32 h-32 rounded-full opacity-10 animate-pulse-s"
+            style={{ background: '#fff', top: -20, right: -20 }} />
+          <div className="relative z-10 p-6 text-left">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold mb-3"
+              style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
+              ⚡ AI POWERED
             </div>
-          ))}
-        </div>
-      </div>
+            <p style={{ fontFamily: 'Barlow Condensed,sans-serif', fontSize: '2.2rem', fontWeight: 900, color: '#fff', lineHeight: 1, letterSpacing: '0.02em' }}>
+              START TODAY'S<br />WORKOUT
+            </p>
+            <div className="flex items-center gap-2 mt-4">
+              <div className="px-4 py-2 rounded-2xl font-bold text-sm"
+                style={{ background: '#fff', color: '#7C5CBF' }}>
+                Build my session →
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)' }}>AI adapts to you</p>
+            </div>
+          </div>
+        </button>
 
-      {/* Last session + PRs row */}
-      <div className="grid grid-cols-2 gap-3 mb-3 animate-slide-up" style={{ animationDelay: '220ms', opacity: 0 }}>
-        {/* Last session */}
-        {lastWorkout ? (
-          <div
-            className="rounded-3xl p-4 relative overflow-hidden"
-            style={{ background: '#001a2e', border: '1px solid #003050' }}
-          >
-            <div className="absolute -right-3 -top-3 w-16 h-16 rounded-full opacity-15" style={{ background: '#22d3ee' }} />
-            <p style={{ fontFamily: B, fontSize: '0.6rem', color: '#22d3ee', letterSpacing: '0.15em', marginBottom: 6 }}>LAST SESSION</p>
-            <p style={{ fontFamily: D, fontSize: '1.1rem', fontWeight: 800, lineHeight: 1.1, color: '#fff', marginBottom: 6 }}>
-              {lastWorkout.name}
-            </p>
-            <p style={{ fontFamily: B, fontSize: '0.7rem', color: '#1a6a80' }}>
-              {new Date(lastWorkout.date).toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' })}
-            </p>
-            <p style={{ fontFamily: D, fontSize: '0.85rem', color: '#22d3ee', marginTop: 4 }}>
-              {lastWorkout.exercises.length} exercises
+        {/* ── Week strip ── */}
+        <div className="animate-slide-up" style={{ opacity: 0, animationDelay: '110ms' }}>
+          <WeekStrip workouts={workouts} />
+        </div>
+
+        {/* ── Stats row ── */}
+        <div className="grid grid-cols-2 gap-3 animate-slide-up" style={{ opacity: 0, animationDelay: '165ms' }}>
+          <div className="rounded-3xl p-5 shadow-card-lg relative overflow-hidden"
+            style={{ background: 'linear-gradient(135deg,#F5A623,#F59E0B)', minHeight: 120 }}>
+            <div className="absolute animate-float2" style={{ top: -5, right: -5, fontSize: '3rem', opacity: 0.3 }}>💥</div>
+            <p style={{ fontSize: '0.62rem', fontWeight: 800, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.12em', marginBottom: 8 }}>LAST VOL</p>
+            <p className="dc" style={{ fontSize: '2.8rem', color: '#fff', lineHeight: 1 }}>
+              {lastWorkout ? Math.round(totalVolume) : '—'}
+              <span style={{ fontSize: '1rem', opacity: 0.7, marginLeft: 3 }}>kg</span>
             </p>
           </div>
-        ) : (
-          <div className="rounded-3xl p-4" style={{ background: '#161616', border: '1px solid #252525' }}>
-            <p style={{ fontFamily: B, fontSize: '0.6rem', color: '#444', letterSpacing: '0.15em', marginBottom: 8 }}>LAST SESSION</p>
-            <p style={{ fontFamily: D, fontSize: '1.1rem', color: '#333' }}>No sessions yet</p>
+          <div className="rounded-3xl p-5 shadow-card-lg relative overflow-hidden"
+            style={{ background: 'linear-gradient(135deg,#5BC4F5,#0EA5E9)', minHeight: 120 }}>
+            <div className="absolute animate-float" style={{ top: 5, right: 5, fontSize: '2.5rem', opacity: 0.3 }}>📅</div>
+            <p style={{ fontSize: '0.62rem', fontWeight: 800, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.12em', marginBottom: 8 }}>THIS WEEK</p>
+            <p className="dc" style={{ fontSize: '2.8rem', color: '#fff', lineHeight: 1 }}>
+              {daysThisWeek}
+              <span style={{ fontSize: '1rem', opacity: 0.7, marginLeft: 3 }}>days</span>
+            </p>
+            <div className="flex gap-1 mt-2">
+              {Array.from({ length: 7 }, (_, i) => (
+                <div key={i} className="flex-1 h-1.5 rounded-full"
+                  style={{ background: i < daysThisWeek ? '#fff' : 'rgba(255,255,255,0.2)' }} />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ── PRs — BIG SECTION ── */}
+        {topPrs.length > 0 && (
+          <div className="animate-slide-up" style={{ opacity: 0, animationDelay: '220ms' }}>
+            <div className="flex items-center justify-between mb-3">
+              <p style={{ fontSize: '1rem', fontWeight: 900, color: '#1a1530' }}>Personal Records 🏆</p>
+              <p style={{ fontSize: '0.75rem', color: '#9895B0', fontWeight: 600 }}>{topPrs.length} PRs</p>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
+              {topPrs.map(([exId, weight], idx) => (
+                <PRCard key={exId} rank={idx}
+                  exerciseName={getExerciseById(exId)?.name ?? exId}
+                  weight={weight} delay={idx * 80} />
+              ))}
+              {/* Add more exercises teaser */}
+              <div className="flex-shrink-0 rounded-3xl p-5 flex flex-col items-center justify-center shadow-card"
+                style={{ background: '#fff', width: 130, minHeight: 160 }}>
+                <p style={{ fontSize: '2rem' }}>💪</p>
+                <p style={{ fontSize: '0.7rem', fontWeight: 700, color: '#9895B0', textAlign: 'center', marginTop: 8 }}>Train more to unlock PRs</p>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Top PR */}
-        {topPrs[0] ? (
-          <div
-            className="rounded-3xl p-4 relative overflow-hidden"
-            style={{ background: '#1a0015', border: '1px solid #3a0030' }}
-          >
-            <div className="absolute -right-3 -bottom-3 w-16 h-16 rounded-full opacity-15" style={{ background: '#f472b6' }} />
-            <p style={{ fontFamily: B, fontSize: '0.6rem', color: '#f472b6', letterSpacing: '0.15em', marginBottom: 6 }}>TOP PR 🏆</p>
-            <p style={{ fontFamily: D, fontSize: '2rem', fontWeight: 900, color: '#f472b6', lineHeight: 1 }}>
-              {topPrs[0][1]}<span style={{ fontSize: '0.9rem', marginLeft: 2 }}>kg</span>
-            </p>
-            <p style={{ fontFamily: B, fontSize: '0.7rem', color: '#6a2060', marginTop: 4 }}>
-              {getExerciseById(topPrs[0][0])?.name ?? topPrs[0][0]}
-            </p>
-          </div>
-        ) : null}
-      </div>
-
-      {/* All PRs */}
-      {topPrs.length > 1 && (
-        <div
-          className="rounded-3xl p-5 animate-slide-up"
-          style={{ animationDelay: '275ms', opacity: 0, background: '#161616', border: '1px solid #252525' }}
-        >
-          <p style={{ fontFamily: D, fontSize: '1rem', fontWeight: 700, letterSpacing: '0.06em', marginBottom: 14 }}>PERSONAL RECORDS</p>
-          <div className="space-y-3">
-            {topPrs.map(([exId, weight], idx) => {
-              const ex = getExerciseById(exId)
-              const colors = ['#00FF87', '#a78bfa', '#fb923c']
-              return (
-                <div key={exId} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold"
-                      style={{ background: `${colors[idx]}20`, color: colors[idx], fontFamily: D }}
-                    >
-                      {idx + 1}
-                    </div>
-                    <p style={{ fontFamily: B, fontSize: '0.88rem', color: '#ccc' }}>{ex?.name ?? exId}</p>
-                  </div>
-                  <p style={{ fontFamily: D, fontSize: '1.2rem', fontWeight: 800, color: colors[idx] }}>{weight} kg</p>
+        {/* ── Last session ── */}
+        {lastWorkout && (
+          <div className="animate-slide-up" style={{ opacity: 0, animationDelay: '300ms' }}>
+            <p style={{ fontSize: '1rem', fontWeight: 900, color: '#1a1530', marginBottom: 10 }}>Last Session</p>
+            <div className="grid grid-cols-2 gap-3">
+              {/* Main session card */}
+              <div className="rounded-3xl p-5 shadow-card-lg col-span-1 relative overflow-hidden"
+                style={{ background: 'linear-gradient(135deg,#4ADE80,#16A34A)' }}>
+                <div className="absolute animate-float" style={{ bottom: -5, right: -10, fontSize: '4rem', opacity: 0.2 }}>🏃</div>
+                <div className="inline-flex px-2 py-1 rounded-xl text-xs font-bold mb-3"
+                  style={{ background: 'rgba(255,255,255,0.25)', color: '#fff' }}>
+                  Completed ✓
                 </div>
-              )
-            })}
+                <p className="dc" style={{ fontSize: '1.2rem', color: '#fff', lineHeight: 1.1 }}>{lastWorkout.name}</p>
+                <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', marginTop: 6 }}>
+                  {new Date(lastWorkout.date).toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' })}
+                </p>
+                <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fff', marginTop: 4 }}>
+                  {lastWorkout.exercises.length} exercises
+                </p>
+              </div>
+
+              {/* Stats mini cards */}
+              <div className="flex flex-col gap-3">
+                <div className="rounded-2xl p-4 shadow-card flex-1"
+                  style={{ background: 'linear-gradient(135deg,#F472B6,#DB2777)' }}>
+                  <p style={{ fontSize: '0.6rem', fontWeight: 800, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.1em' }}>VOLUME</p>
+                  <p className="dc" style={{ fontSize: '1.4rem', color: '#fff' }}>{Math.round(totalVolume)}<span style={{ fontSize: '0.7rem', opacity: 0.8 }}> kg</span></p>
+                </div>
+                <div className="rounded-2xl p-4 shadow-card flex-1"
+                  style={{ background: 'linear-gradient(135deg,#2DD4BF,#0D9488)' }}>
+                  <p style={{ fontSize: '0.6rem', fontWeight: 800, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.1em' }}>SETS</p>
+                  <p className="dc" style={{ fontSize: '1.4rem', color: '#fff' }}>
+                    {lastWorkout.exercises.reduce((s, ex) => s + ex.sets.filter(x => x.completed).length, 0)}
+                    <span style={{ fontSize: '0.7rem', opacity: 0.8 }}> done</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Motivational card ── */}
+        <div className="rounded-3xl p-5 shadow-card animate-slide-up"
+          style={{ opacity: 0, animationDelay: '360ms', background: '#fff' }}>
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl animate-pulse-s shadow-card"
+              style={{ background: 'linear-gradient(135deg,#F0EEF8,#E8E4F8)', flexShrink: 0 }}>
+              {daysThisWeek >= 5 ? '🏆' : daysThisWeek >= 3 ? '🌟' : '🎯'}
+            </div>
+            <div>
+              <p style={{ fontWeight: 900, fontSize: '0.95rem', color: '#1a1530' }}>
+                {daysThisWeek >= 5 ? 'You\'re on fire!' : daysThisWeek >= 3 ? 'Great momentum!' : 'Every rep counts!'}
+              </p>
+              <p style={{ fontSize: '0.8rem', color: '#9895B0', marginTop: 2, lineHeight: 1.4 }}>
+                {daysThisWeek >= 5
+                  ? `${daysThisWeek} days this week. Keep the streak alive! 🔥`
+                  : daysThisWeek >= 3
+                  ? `${daysThisWeek}/7 days trained. Push for more!`
+                  : 'Start a session today to build your streak.'}
+              </p>
+            </div>
           </div>
         </div>
-      )}
+
+      </div>
     </div>
   )
 }

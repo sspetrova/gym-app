@@ -30,6 +30,8 @@ export type CheckIn = {
   soreness: { upper: number; lower: number; core: number }
   injuries: string[]
   notes: string
+  durationMin: number  // 30 | 45 | 60 | 90
+  yesterdayActivity: string  // e.g. 'rest' | 'running' | 'cycling' | 'football' | 'swimming' | 'yoga'
 }
 
 export type GeneratedExercise = {

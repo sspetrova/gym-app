@@ -2,45 +2,28 @@
 
 import { usePathname, useRouter } from 'next/navigation'
 
-const D = 'Barlow Condensed, sans-serif'
-
 const NAV = [
-  { href: '/',        icon: '⚡', label: 'Home' },
-  { href: '/history', icon: '📊', label: 'History' },
+  { href: '/', icon: '🏠', label: 'Home' },
+  { href: '/history', icon: '📈', label: 'Progress' },
 ]
 
 export default function BottomNav() {
   const router = useRouter()
   const path = usePathname()
-
-  // Hide on active/done/new pages
   if (path.startsWith('/workout/')) return null
 
   return (
-    <div
-      className="sticky bottom-0 left-0 right-0 z-50"
-      style={{ background: 'rgba(13,13,13,0.95)', backdropFilter: 'blur(16px)', borderTop: '1px solid #1e1e1e' }}
-    >
-      <div className="flex items-center justify-around px-6 py-3">
+    <div className="sticky bottom-0 z-50 shadow-card" style={{ background: 'rgba(240,238,248,0.95)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(124,92,191,0.1)' }}>
+      <div className="flex items-center justify-around px-8 py-3 pb-6">
         {NAV.map((item) => {
           const active = path === item.href
           return (
-            <button
-              key={item.href}
-              onClick={() => router.push(item.href)}
-              className="btn-press flex flex-col items-center gap-1 px-6 py-2 rounded-2xl transition-all duration-200"
-              style={{ background: active ? '#00FF87/10' : 'transparent' }}
-            >
-              <span className="text-xl">{item.icon}</span>
-              <span
-                style={{
-                  fontFamily: D,
-                  fontSize: '0.7rem',
-                  fontWeight: 700,
-                  letterSpacing: '0.1em',
-                  color: active ? '#00FF87' : '#444',
-                }}
-              >
+            <button key={item.href} onClick={() => router.push(item.href)} className="btn-press flex flex-col items-center gap-1.5">
+              <div className="w-14 h-14 rounded-3xl flex items-center justify-center text-2xl transition-all duration-300 shadow-card"
+                style={{ background: active ? '#7C5CBF' : '#fff', transform: active ? 'scale(1.1)' : 'scale(1)' }}>
+                {item.icon}
+              </div>
+              <span style={{ fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.06em', color: active ? '#7C5CBF' : '#C4C0D8' }}>
                 {item.label.toUpperCase()}
               </span>
             </button>
