@@ -45,7 +45,7 @@ function WorkoutCard({ workout }: { workout: Workout }) {
         <div className="flex items-start justify-between">
           <div>
             <p className="font-display" style={{ fontSize: '1.1rem', fontStyle: 'italic' }}>{workout.name}</p>
-            <p style={{ fontSize: '0.75rem', color: '#888', marginTop: 2 }}>
+            <p style={{ fontSize: '0.75rem', color: '#555', marginTop: 2 }}>
               {new Date(workout.date).toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' })}
             </p>
             <div className="flex flex-wrap gap-1 mt-2">
@@ -118,7 +118,7 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
   if (active && payload && payload.length) {
     return (
       <div className="rounded-2xl px-3 py-2 text-xs card-shadow" style={{ background: '#fff' }}>
-        <p style={{ color: '#888', marginBottom: 2 }}>{label}</p>
+        <p style={{ color: '#444', marginBottom: 2 }}>{label}</p>
         <p style={{ fontWeight: 700, color: '#1a1a1a' }}>{payload[0].value} kg</p>
       </div>
     )
@@ -155,13 +155,13 @@ export default function History() {
   }, [workouts, chartExercise])
 
   if (!mounted) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#F0EEF8' }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#EAE2FB' }}>
       <div className="w-10 h-10 rounded-full animate-spin" style={{ border: '3px solid #7C5CBF', borderTopColor: 'transparent' }} />
     </div>
   )
 
   return (
-    <div className="min-h-screen px-4 pt-10 pb-28" style={{ background: '#F0EEF8' }}>
+    <div className="min-h-screen px-4 pt-10 pb-28" style={{ background: '#EAE2FB' }}>
       <div className="flex items-center justify-between mb-6 animate-slide-up" style={{ opacity: 0 }}>
         <h1 className="font-display" style={{ fontSize: '2.2rem', fontStyle: 'italic' }}>Progress</h1>
         <div className="px-3 py-1.5 rounded-xl text-sm font-semibold card-shadow" style={{ background: '#fff', color: '#1a1a1a' }}>
@@ -171,7 +171,7 @@ export default function History() {
 
       {/* PR Chart */}
       <div className="rounded-3xl p-5 mb-4 card-shadow animate-slide-up" style={{ animationDelay: '60ms', opacity: 0, background: '#fff' }}>
-        <p style={{ fontSize: '0.65rem', fontWeight: 600, color: '#bbb', letterSpacing: '0.15em', marginBottom: 12 }}>PR PROGRESSION</p>
+        <p style={{ fontSize: '0.65rem', fontWeight: 600, color: '#666', letterSpacing: '0.15em', marginBottom: 12 }}>PR PROGRESSION</p>
         <select value={chartExercise} onChange={(e) => setChartExercise(e.target.value)}
           className="w-full rounded-2xl px-3 py-2.5 text-sm mb-4 focus:outline-none font-medium"
           style={{ background: '#F2F0EB', border: 'none', color: '#1a1a1a', fontFamily: 'DM Sans, sans-serif' }}>
@@ -182,14 +182,14 @@ export default function History() {
           <ResponsiveContainer width="100%" height={150}>
             <LineChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F2F0EB" />
-              <XAxis dataKey="date" tick={{ fill: '#bbb', fontSize: 10 }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fill: '#bbb', fontSize: 10 }} tickLine={false} axisLine={false} />
+              <XAxis dataKey="date" tick={{ fill: '#666', fontSize: 10 }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fill: '#666', fontSize: 10 }} tickLine={false} axisLine={false} />
               <Tooltip content={<CustomTooltip />} />
               <Line type="monotone" dataKey="weight" stroke="#1a1a1a" strokeWidth={2.5} dot={{ fill: '#1a1a1a', r: 4 }} activeDot={{ r: 6 }} />
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <p style={{ fontSize: '0.85rem', color: '#bbb', textAlign: 'center', padding: '20px 0' }}>
+          <p style={{ fontSize: '0.85rem', color: '#666', textAlign: 'center', padding: '20px 0' }}>
             {chartExercise ? 'No data yet' : 'Select an exercise to see progress'}
           </p>
         )}
@@ -202,7 +202,7 @@ export default function History() {
             className="btn-press flex-shrink-0 px-3 py-2 rounded-2xl text-xs font-semibold transition-all duration-200"
             style={{
               background: filter === g ? '#1a1a1a' : '#fff',
-              color: filter === g ? '#fff' : '#888',
+              color: filter === g ? '#fff' : '#444',
             }}>
             {g.charAt(0).toUpperCase() + g.slice(1)}
           </button>
@@ -214,7 +214,7 @@ export default function History() {
         <div className="text-center py-16 animate-fade-in" style={{ opacity: 0 }}>
           <p style={{ fontSize: '3rem', marginBottom: 12 }}>💪</p>
           <p className="font-display" style={{ fontSize: '1.5rem', fontStyle: 'italic' }}>No workouts yet</p>
-          <p style={{ fontSize: '0.85rem', color: '#888', marginTop: 6 }}>Let&apos;s change that.</p>
+          <p style={{ fontSize: '0.85rem', color: '#555', marginTop: 6 }}>Let&apos;s change that.</p>
           <button onClick={() => router.push('/workout/new')}
             className="btn-press mt-6 px-6 py-3 rounded-2xl font-semibold text-white card-shadow"
             style={{ background: '#1a1a1a' }}>
@@ -225,7 +225,7 @@ export default function History() {
         <div className="animate-slide-up" style={{ animationDelay: '160ms', opacity: 0 }}>
           {weeks.map((week) => (
             <div key={week.label} className="mb-6">
-              <p style={{ fontSize: '0.65rem', fontWeight: 600, color: '#bbb', letterSpacing: '0.15em', marginBottom: 10 }}>{week.label.toUpperCase()}</p>
+              <p style={{ fontSize: '0.65rem', fontWeight: 700, color: '#6B4FA8', letterSpacing: '0.15em', marginBottom: 10 }}>{week.label.toUpperCase()}</p>
               {week.workouts.map((w) => <WorkoutCard key={w.id} workout={w} />)}
             </div>
           ))}

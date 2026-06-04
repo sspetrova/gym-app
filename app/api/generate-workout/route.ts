@@ -2,6 +2,51 @@ import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { EXERCISES } from '@/lib/exercises'
 
+type GenExercise = { exerciseId: string; sets: number; reps: number; suggestedWeightKg: number; lastWeightKg: number | null; substituteReason?: string }
+
+function sanitizeExercises(
+  exercises: GenExercise[],
+  allowedPool: typeof import('@/lib/exercises').EXERCISES,
+  hasFocus: boolean,
+  focusMuscles: string[],
+  lastWeightMap: Record<string, number>
+): GenExercise[] {
+  const allowedIds = new Set(allowedPool.map((e) => e.id))
+  const usedIds = new Set<string>()
+
+  return exercises.reduce<GenExercise[]>((acc, ex) => {
+    const id = ex.exerciseId
+
+    // 1. Deduplicate — if already used, pick something else
+    // 2. Focus validation — if not in allowed pool, pick something else
+    const needsReplacement = usedIds.has(id) || (hasFocus && !allowedIds.has(id))
+
+    if (!needsReplacement) {
+      usedIds.add(id)
+      acc.push({ ...ex, lastWeightKg: ex.lastWeightKg ?? lastWeightMap[id] ?? null })
+      return acc
+    }
+
+    // Find replacement: allowed + not yet used
+    const replacement = allowedPool.find((e) => !usedIds.has(e.id) && (!hasFocus || allowedIds.has(e.id)))
+    if (!replacement) {
+      // Nothing left — skip this exercise rather than duplicate
+      return acc
+    }
+
+    usedIds.add(replacement.id)
+    acc.push({
+      ...ex,
+      exerciseId: replacement.id,
+      lastWeightKg: lastWeightMap[replacement.id] ?? null,
+      substituteReason: usedIds.has(id)
+        ? `Replaced duplicate ${id}`
+        : `Auto-corrected to match your ${focusMuscles.join('/')} focus`,
+    })
+    return acc
+  }, [])
+}
+
 const SINAS_URL = process.env.SINAS_URL
 const SINAS_TOKEN = process.env.SINAS_TOKEN
 const USE_SINAS = !!(SINAS_URL && SINAS_TOKEN)
@@ -9,8 +54,9 @@ const USE_SINAS = !!(SINAS_URL && SINAS_TOKEN)
 export async function POST(req: NextRequest) {
   try {
     const { checkin, history, userGoal, focusMuscles, userPreferences } = await req.json()
-    const focusText = focusMuscles?.length > 0
-      ? `The user specifically wants to train: ${focusMuscles.join(', ')}. Prioritise these muscle groups.`
+    const hasFocus = focusMuscles?.length > 0
+    const focusText = hasFocus
+      ? `⚠️ MANDATORY MUSCLE FOCUS: The user has chosen to train ONLY: ${focusMuscles.join(', ')}. You MUST select exercises that target ONLY these muscle groups. Do NOT include any exercises for other muscle groups. This overrides everything else.`
       : 'No specific muscle focus — choose based on history and recovery.'
 
     const prefsText = userPreferences
@@ -67,7 +113,12 @@ export async function POST(req: NextRequest) {
 
       const jsonMatch = fullContent.match(/\{[\s\S]*\}/)
       if (!jsonMatch) throw new Error('No JSON in Sinas response')
-      return NextResponse.json(JSON.parse(jsonMatch[0]))
+      const sinasResult = JSON.parse(jsonMatch[0])
+
+      if (sinasResult.exercises) {
+        sinasResult.exercises = sanitizeExercises(sinasResult.exercises, relevantExercises, hasFocus, focusMuscles, {})
+      }
+      return NextResponse.json(sinasResult)
     }
 
     // ── Direct Claude path ──
@@ -105,7 +156,8 @@ export async function POST(req: NextRequest) {
       max_tokens: 2000,
       system: `You are a professional personal trainer AI. Generate a workout plan as valid JSON only — no markdown, no code blocks, no explanation text. Return ONLY the raw JSON object.
 
-Available exercises:
+${hasFocus ? `🚨 CRITICAL RULE: The user wants to train ONLY [${focusMuscles.join(', ')}]. Every single exercise MUST target at least one of these muscles. Any exercise that does not directly train [${focusMuscles.join(', ')}] is FORBIDDEN.\n` : ''}
+Available exercises (ONLY choose from this list):
 ${exerciseList}
 
 Rules:
@@ -115,12 +167,14 @@ Rules:
 4. Avoid same muscle group within 48 hours.
 5. Progressive overload: if same exercise 3+ times at same weight, suggest +2.5kg.
 6. Select 4-5 exercises, 3-4 sets each.
+7. For each exercise, add a short "notes" field (max 10 words) explaining WHY that specific weight was chosen — e.g. "Low energy today, dropped 10% from last session", "Progressive overload: +2.5kg from last week", "First time — starting conservative", "High energy, pushing to new PR".
+${hasFocus ? `8. MANDATORY: ALL exercises must target [${focusMuscles.join(', ')}]. No exceptions.` : ''}
 
 Return ONLY:
 {
   "workoutName": "string",
   "reasoning": "string",
-  "exercises": [{"exerciseId": "string", "sets": number, "reps": number, "suggestedWeightKg": number, "lastWeightKg": number|null, "substituteReason": "string or omit"}]
+  "exercises": [{"exerciseId": "string", "sets": number, "reps": number, "suggestedWeightKg": number, "lastWeightKg": number|null, "notes": "short weight rationale", "substituteReason": "string or omit"}]
 }`,
       messages: [
         {
@@ -134,12 +188,8 @@ Return ONLY:
     if (content.type !== 'text') throw new Error('Unexpected response type')
     const raw = content.text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
     const parsed = JSON.parse(raw)
-    // Guarantee lastWeightKg is populated from memory if AI omitted it
     if (parsed.exercises) {
-      parsed.exercises = parsed.exercises.map((ex: { exerciseId: string; lastWeightKg: number | null }) => ({
-        ...ex,
-        lastWeightKg: ex.lastWeightKg ?? lastWeightMap[ex.exerciseId] ?? null,
-      }))
+      parsed.exercises = sanitizeExercises(parsed.exercises, relevantExercises, hasFocus, focusMuscles, lastWeightMap)
     }
     return NextResponse.json(parsed)
   } catch (err) {

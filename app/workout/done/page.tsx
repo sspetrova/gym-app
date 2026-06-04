@@ -87,12 +87,12 @@ export default function WorkoutDone() {
         <h1 className="font-display" style={{ fontSize: '3rem', fontStyle: 'italic', lineHeight: 1 }}>
           {newPrs.length > 0 ? 'New records!' : 'Workout done!'}
         </h1>
-        <p style={{ fontSize: '0.85rem', color: '#888', marginTop: 6 }}>{workout.name}</p>
+        <p style={{ fontSize: '0.85rem', color: '#555', marginTop: 6 }}>{workout.name}</p>
       </div>
 
       {/* ── Session Rating ── */}
       <div className="rounded-3xl p-5 mb-4 card-shadow animate-slide-up" style={{ animationDelay: '60ms', opacity: 0, background: '#fff' }}>
-        <p style={{ fontSize: '0.65rem', fontWeight: 700, color: '#bbb', letterSpacing: '0.15em', marginBottom: 14 }}>HOW WAS THIS SESSION?</p>
+        <p style={{ fontSize: '0.65rem', fontWeight: 700, color: '#666', letterSpacing: '0.15em', marginBottom: 14 }}>HOW WAS THIS SESSION?</p>
         <div className="flex justify-between gap-2">
           {RATING_OPTIONS.map((r) => (
             <button key={r.value} onClick={() => setRating(r.value)}
@@ -112,7 +112,7 @@ export default function WorkoutDone() {
 
       {/* ── Recovery question ── */}
       <div className="rounded-3xl p-5 mb-4 card-shadow animate-slide-up" style={{ animationDelay: '110ms', opacity: 0, background: '#fff' }}>
-        <p style={{ fontSize: '0.65rem', fontWeight: 700, color: '#bbb', letterSpacing: '0.15em', marginBottom: 14 }}>HOW DO YOU FEEL?</p>
+        <p style={{ fontSize: '0.65rem', fontWeight: 700, color: '#666', letterSpacing: '0.15em', marginBottom: 14 }}>HOW DO YOU FEEL?</p>
         <div className="grid grid-cols-2 gap-2">
           {RECOVERY_OPTIONS.map((r) => (
             <button key={r.id} onClick={() => setRecovery(r.id)}
@@ -123,7 +123,7 @@ export default function WorkoutDone() {
               }}>
               <span style={{ fontSize: '1.3rem', display: 'block', marginBottom: 4 }}>{r.emoji}</span>
               <p style={{ fontSize: '0.82rem', fontWeight: 700, color: recovery === r.id ? '#16a34a' : '#1a1a1a' }}>{r.label}</p>
-              <p style={{ fontSize: '0.68rem', color: '#888', marginTop: 1 }}>{r.detail}</p>
+              <p style={{ fontSize: '0.68rem', color: '#555', marginTop: 1 }}>{r.detail}</p>
             </button>
           ))}
         </div>
@@ -145,7 +145,7 @@ export default function WorkoutDone() {
                 <div key={pr.exerciseId} className="flex items-center justify-between">
                   <p style={{ fontSize: '0.9rem', fontWeight: 500 }}>{ex?.name ?? pr.exerciseId}</p>
                   <div className="flex items-center gap-2">
-                    {prevPrs[pr.exerciseId] > 0 && <p style={{ fontSize: '0.75rem', color: '#bbb' }}>{prevPrs[pr.exerciseId]} →</p>}
+                    {prevPrs[pr.exerciseId] > 0 && <p style={{ fontSize: '0.75rem', color: '#666' }}>{prevPrs[pr.exerciseId]} →</p>}
                     <p className="font-condensed" style={{ fontSize: '1.3rem', color: '#d97706' }}>{pr.weightKg} kg</p>
                   </div>
                 </div>
@@ -157,14 +157,14 @@ export default function WorkoutDone() {
 
       {/* Stats summary (secondary) */}
       <div className="rounded-2xl p-4 text-center card-shadow mb-4 animate-slide-up" style={{ animationDelay: '200ms', opacity: 0, background: '#fff' }}>
-        <p style={{ fontSize: '0.55rem', fontWeight: 700, color: '#bbb', letterSpacing: '0.12em', marginBottom: 4 }}>SETS COMPLETED</p>
+        <p style={{ fontSize: '0.55rem', fontWeight: 700, color: '#666', letterSpacing: '0.12em', marginBottom: 4 }}>SETS COMPLETED</p>
         <p style={{ fontSize: '2.2rem', fontWeight: 900, color: '#1a1a1a', lineHeight: 1 }}>{totalSets}</p>
-        <p style={{ fontSize: '0.65rem', color: '#bbb', marginTop: 2 }}>across {completedExercises.filter(e => e.completedSets.length > 0).length} exercises</p>
+        <p style={{ fontSize: '0.65rem', color: '#666', marginTop: 2 }}>across {completedExercises.filter(e => e.completedSets.length > 0).length} exercises</p>
       </div>
 
       {/* Exercises */}
       <div className="rounded-3xl p-5 mb-5 card-shadow animate-slide-up" style={{ animationDelay: '250ms', opacity: 0, background: '#fff' }}>
-        <p style={{ fontSize: '0.65rem', fontWeight: 600, color: '#bbb', letterSpacing: '0.15em', marginBottom: 14 }}>EXERCISES</p>
+        <p style={{ fontSize: '0.65rem', fontWeight: 600, color: '#666', letterSpacing: '0.15em', marginBottom: 14 }}>EXERCISES</p>
         <div className="space-y-3">
           {completedExercises.map((ex) => {
             const exercise = getExerciseById(ex.exerciseId)
@@ -178,9 +178,9 @@ export default function WorkoutDone() {
                     <p style={{ fontSize: '0.95rem', fontWeight: 600 }}>{exercise?.name ?? ex.exerciseId}</p>
                     {isPr && <span className="px-2 py-0.5 rounded-lg text-xs font-bold" style={{ background: '#FFFBEB', color: '#d97706' }}>PR</span>}
                   </div>
-                  <p style={{ fontSize: '0.72rem', color: '#bbb' }}>{ex.completedSets.length} sets · max {maxW.weightKg} kg</p>
+                  <p style={{ fontSize: '0.72rem', color: '#666' }}>{ex.completedSets.length} sets · max {maxW.weightKg} kg</p>
                 </div>
-                <p style={{ fontSize: '0.95rem', fontWeight: 600, color: '#888' }}>{Math.round(exVol)} kg</p>
+                <p style={{ fontSize: '0.95rem', fontWeight: 600, color: '#444' }}>{Math.round(exVol)} kg</p>
               </div>
             )
           })}

@@ -185,57 +185,57 @@ export default function Dashboard() {
         <div className="grid grid-cols-2 gap-3 animate-slide-up" style={{ opacity: 0, animationDelay: '165ms' }}>
 
           {/* Weekly goal — purple */}
-          <div className="rounded-3xl p-4 shadow-card-lg relative overflow-hidden col-span-1"
-            style={{ background: weeklyGoal?.achieved ? 'linear-gradient(135deg,#253A82,#88A2FF)' : 'linear-gradient(135deg,#88A2FF,#AB9DFF)', minHeight: 130 }}>
-            <div className="absolute" style={{ top: 6, right: 10, fontSize: '2rem', opacity: 0.2 }}>🎯</div>
-            <p style={{ fontSize: '0.58rem', fontWeight: 800, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.15em', marginBottom: 6 }}>THIS WEEK</p>
+          <div className="rounded-2xl p-3 shadow-card-lg relative overflow-hidden col-span-1"
+            style={{ background: weeklyGoal?.achieved ? 'linear-gradient(135deg,#253A82,#88A2FF)' : 'linear-gradient(135deg,#88A2FF,#AB9DFF)' }}>
+            <div className="absolute" style={{ top: 6, right: 8, fontSize: '2rem', opacity: 0.2 }}>🎯</div>
+            <p style={{ fontSize: '0.58rem', fontWeight: 800, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.15em', marginBottom: 5 }}>THIS WEEK</p>
 
             {weeklyGoal && !editingGoal ? (
               <div>
-                <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>
+                <p style={{ fontSize: '0.95rem', fontWeight: 800, color: '#fff', lineHeight: 1.25, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                   {weeklyGoal.achieved ? '✅ ' : ''}{weeklyGoal.goal}
                 </p>
                 {streak >= 3 && (
-                  <p style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.7)', marginTop: 3 }}>🔥 {streak} day streak</p>
+                  <p style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', marginTop: 3 }}>🔥 {streak} day streak</p>
                 )}
-                <div className="flex gap-2 mt-3">
+                <div className="flex gap-1.5 mt-2.5">
                   {!weeklyGoal.achieved && (
                     <button onClick={() => { markWeeklyGoalAchieved(); setWeeklyGoalState((g) => g ? { ...g, achieved: true } : g) }}
-                      className="btn-press px-2.5 py-1.5 rounded-xl text-xs font-bold"
-                      style={{ background: 'rgba(255,255,255,0.25)', color: '#fff' }}>Done ✓</button>
+                      className="btn-press px-2 py-0.5 rounded-md font-bold"
+                      style={{ background: 'rgba(255,255,255,0.25)', color: '#fff', fontSize: '0.58rem', letterSpacing: '0.05em' }}>DONE ✓</button>
                   )}
                   <button onClick={() => setEditingGoal(true)}
-                    className="btn-press px-2.5 py-1.5 rounded-xl text-xs font-medium"
-                    style={{ background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.8)' }}>Edit</button>
+                    className="btn-press px-2 py-0.5 rounded-md font-medium"
+                    style={{ background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.8)', fontSize: '0.58rem', letterSpacing: '0.05em' }}>EDIT</button>
                 </div>
               </div>
             ) : (
               <div>
-                {!weeklyGoal && <p style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.65)', marginBottom: 8 }}>Set your goal</p>}
-                <div className="flex gap-2">
+                {!weeklyGoal && <p style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.65)', marginBottom: 6 }}>Set your goal</p>}
+                <div className="flex gap-1.5">
                   <input type="text" placeholder="e.g. pull up…" value={goalInput}
                     onChange={(e) => setGoalInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && goalInput.trim()) { setCurrentWeekGoal(goalInput.trim()); setWeeklyGoalState({ goal: goalInput.trim(), achieved: false }); setEditingGoal(false) }}}
-                    className="flex-1 rounded-xl px-2.5 py-2 text-sm font-medium focus:outline-none"
+                    className="flex-1 rounded-lg px-2.5 py-2 text-sm font-medium focus:outline-none"
                     style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: '1.5px solid rgba(255,255,255,0.3)', fontFamily: 'DM Sans, sans-serif' }} />
                   <button onClick={() => { if (!goalInput.trim()) return; setCurrentWeekGoal(goalInput.trim()); setWeeklyGoalState({ goal: goalInput.trim(), achieved: false }); setEditingGoal(false) }}
-                    className="btn-press px-3 rounded-xl text-sm font-bold"
+                    className="btn-press px-3 rounded-lg text-sm font-bold"
                     style={{ background: 'rgba(255,255,255,0.25)', color: '#fff' }}>Set</button>
                 </div>
-                {editingGoal && <button onClick={() => setEditingGoal(false)} className="mt-2 text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Cancel</button>}
+                {editingGoal && <button onClick={() => setEditingGoal(false)} className="mt-1.5 text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Cancel</button>}
               </div>
             )}
           </div>
 
-          {/* Streak — always blue */}
-          <div className="rounded-3xl p-4 shadow-card-lg relative overflow-hidden col-span-1"
-            style={{ background: 'linear-gradient(135deg,#E3FC87,#C8F060)', minHeight: 130 }}>
-            <div className="absolute" style={{ top: 6, right: 8, fontSize: '2rem', opacity: 0.35 }}>🔥</div>
-            <p style={{ fontSize: '0.58rem', fontWeight: 800, color: 'rgba(37,58,130,0.55)', letterSpacing: '0.12em', marginBottom: 6 }}>STREAK</p>
-            <p className="dc" style={{ fontSize: '3rem', color: '#253A82', lineHeight: 1 }}>
-              {streak}<span style={{ fontSize: '0.9rem', opacity: 0.6, marginLeft: 3 }}>days</span>
+          {/* Streak — yellow-green */}
+          <div className="rounded-2xl p-3 shadow-card-lg relative overflow-hidden col-span-1"
+            style={{ background: 'linear-gradient(135deg,#E3FC87,#C8F060)' }}>
+            <div className="absolute" style={{ top: 6, right: 8, fontSize: '1.6rem', opacity: 0.35 }}>🔥</div>
+            <p style={{ fontSize: '0.58rem', fontWeight: 800, color: 'rgba(37,58,130,0.55)', letterSpacing: '0.12em', marginBottom: 4 }}>STREAK</p>
+            <p className="dc" style={{ fontSize: '2.4rem', color: '#253A82', lineHeight: 1 }}>
+              {streak}<span style={{ fontSize: '0.8rem', opacity: 0.6, marginLeft: 2 }}>days</span>
             </p>
-            <p style={{ fontSize: '0.65rem', color: 'rgba(37,58,130,0.55)', marginTop: 6 }}>
+            <p style={{ fontSize: '0.6rem', color: 'rgba(37,58,130,0.55)', marginTop: 4 }}>
               {streak === 0 ? 'Start today, you got this!' : streak <= 2 ? `${streak} day${streak > 1 ? 's' : ''} — keep going! 💪` : `${streak} days in a row 🔥`}
             </p>
           </div>
@@ -319,7 +319,7 @@ export default function Dashboard() {
                       </p>
                     </>
                   ) : (
-                    <p style={{ fontSize: '0.8rem', color: 'rgba(37,58,130,0.45)', marginTop: 4 }}>Not rated</p>
+                    <p style={{ fontSize: '0.8rem', color: 'rgba(37,58,130,0.7)', marginTop: 4 }}>Not rated</p>
                   )}
                 </div>
                 <div className="rounded-2xl p-3" style={{ background: '#E3FC87' }}>
@@ -329,12 +329,12 @@ export default function Dashboard() {
                       <p style={{ fontSize: '1.5rem', fontWeight: 900, color: '#253A82', lineHeight: 1 }}>
                         +{bestImprovement.to - bestImprovement.from}kg
                       </p>
-                      <p style={{ fontSize: '0.65rem', color: 'rgba(37,58,130,0.65)', marginTop: 3, lineHeight: 1.3 }}>
+                      <p style={{ fontSize: '0.65rem', color: 'rgba(37,58,130,0.8)', marginTop: 3, lineHeight: 1.3 }}>
                         {bestImprovement.name}
                       </p>
                     </>
                   ) : (
-                    <p style={{ fontSize: '0.8rem', color: 'rgba(37,58,130,0.45)', marginTop: 4 }}>Keep going!</p>
+                    <p style={{ fontSize: '0.8rem', color: 'rgba(37,58,130,0.7)', marginTop: 4 }}>Keep going!</p>
                   )}
                 </div>
               </div>

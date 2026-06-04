@@ -50,6 +50,7 @@ export type GeneratedExercise = {
   suggestedWeightKg: number
   lastWeightKg: number | null
   substituteReason?: string
+  notes?: string
 }
 
 export type GeneratedWorkout = {

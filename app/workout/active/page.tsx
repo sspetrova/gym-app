@@ -48,12 +48,12 @@ function SwapModal({ exerciseId, workoutExerciseIds, onConfirm, onCancel }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center animate-fade-in" style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(8px)', opacity: 0 }}>
-      <div className="w-full max-w-md rounded-t-3xl p-6 pb-10 animate-slide-up card-shadow-lg" style={{ background: '#DAEEFF', opacity: 0 }}>
+      <div className="w-full max-w-md rounded-t-3xl p-6 pb-10 animate-slide-up card-shadow-lg" style={{ background: '#fff', opacity: 0 }}>
         <div className="flex items-center justify-between mb-5">
           <h2 className="font-display" style={{ fontSize: '1.6rem', fontStyle: 'italic' }}>Swap exercise</h2>
           <button onClick={onCancel} className="btn-press w-9 h-9 rounded-full flex items-center justify-center text-lg font-bold" style={{ background: '#E8E4DC', color: '#555' }}>×</button>
         </div>
-        <p style={{ fontSize: '0.85rem', color: '#888', marginBottom: 16 }}>
+        <p style={{ fontSize: '0.85rem', color: '#444', marginBottom: 16 }}>
           Replacing: <strong style={{ color: '#1a1a1a' }}>{ex?.name}</strong>
         </p>
 
@@ -100,6 +100,7 @@ function SwapModal({ exerciseId, workoutExerciseIds, onConfirm, onCancel }: {
             </div>
             <div className="flex gap-3">
               <button onClick={onCancel} className="btn-press flex-1 py-3.5 rounded-2xl font-medium text-sm" style={{ background: '#fff', color: '#555' }}>Cancel</button>
+              <button onClick={() => setResult(null)} className="btn-press flex-1 py-3.5 rounded-2xl font-medium text-sm" style={{ background: '#F3EFFF', color: '#7c3aed' }}>Try another →</button>
               <button onClick={() => onConfirm(result.exerciseId, result.reason)} className="btn-press flex-1 py-3.5 rounded-2xl font-semibold text-white text-sm" style={{ background: '#1a1a1a' }}>Confirm</button>
             </div>
           </div>
@@ -116,30 +117,30 @@ function SetRow({ setIndex, weightKg, reps, completed, onUpdate, onToggle, onDel
 }) {
   return (
     <div className={`flex items-center gap-2 py-2 transition-opacity duration-200 ${completed ? 'opacity-50' : ''}`}>
-      <span className="w-6 text-center text-sm font-bold" style={{ color: '#ccc' }}>{setIndex + 1}</span>
+      <span className="w-6 text-center text-sm font-bold" style={{ color: '#999' }}>{setIndex + 1}</span>
 
-      <div className="flex-1 flex items-center rounded-2xl overflow-hidden" style={{ background: '#DAEEFF' }}>
-        <button onClick={() => onUpdate(Math.max(0, weightKg - 2.5), reps)} className="btn-press w-9 h-11 flex items-center justify-center text-xl font-light" style={{ color: '#aaa' }}>−</button>
+      <div className="flex-1 flex items-center rounded-2xl overflow-hidden" style={{ background: '#fff' }}>
+        <button onClick={() => onUpdate(Math.max(0, weightKg - 2.5), reps)} className="btn-press w-9 h-11 flex items-center justify-center text-xl font-light" style={{ color: '#666' }}>−</button>
         <div className="flex-1 flex items-baseline gap-0.5 pl-1">
           <input type="number" value={weightKg} onChange={(e) => onUpdate(Number(e.target.value) || 0, reps)}
             onFocus={(e) => e.target.select()}
             className="w-12 bg-transparent focus:outline-none font-bold text-left" style={{ fontSize: '1rem', color: '#1a1a1a' }} />
-          <span style={{ fontSize: '0.65rem', color: '#bbb' }}>kg</span>
+          <span style={{ fontSize: '0.65rem', color: '#777' }}>kg</span>
         </div>
-        <button onClick={() => onUpdate(weightKg + 2.5, reps)} className="btn-press w-9 h-11 flex items-center justify-center text-xl font-light" style={{ color: '#aaa' }}>+</button>
+        <button onClick={() => onUpdate(weightKg + 2.5, reps)} className="btn-press w-9 h-11 flex items-center justify-center text-xl font-light" style={{ color: '#666' }}>+</button>
       </div>
 
-      <span style={{ color: '#ddd' }}>×</span>
+      <span style={{ color: '#999' }}>×</span>
 
-      <div className="flex-1 flex items-center rounded-2xl overflow-hidden" style={{ background: '#DAEEFF' }}>
-        <button onClick={() => onUpdate(weightKg, Math.max(1, reps - 1))} className="btn-press w-9 h-11 flex items-center justify-center text-xl font-light" style={{ color: '#aaa' }}>−</button>
+      <div className="flex-1 flex items-center rounded-2xl overflow-hidden" style={{ background: '#fff' }}>
+        <button onClick={() => onUpdate(weightKg, Math.max(1, reps - 1))} className="btn-press w-9 h-11 flex items-center justify-center text-xl font-light" style={{ color: '#666' }}>−</button>
         <div className="flex-1 flex items-baseline gap-0.5 pl-1">
           <input type="number" value={reps} onChange={(e) => onUpdate(weightKg, Number(e.target.value) || 1)}
             onFocus={(e) => e.target.select()}
             className="w-10 bg-transparent focus:outline-none font-bold text-left" style={{ fontSize: '1rem', color: '#1a1a1a' }} />
-          <span style={{ fontSize: '0.65rem', color: '#bbb' }}>rep</span>
+          <span style={{ fontSize: '0.65rem', color: '#777' }}>rep</span>
         </div>
-        <button onClick={() => onUpdate(weightKg, reps + 1)} className="btn-press w-9 h-11 flex items-center justify-center text-xl font-light" style={{ color: '#aaa' }}>+</button>
+        <button onClick={() => onUpdate(weightKg, reps + 1)} className="btn-press w-9 h-11 flex items-center justify-center text-xl font-light" style={{ color: '#666' }}>+</button>
       </div>
 
       <button onClick={onToggle}
@@ -199,7 +200,7 @@ function AddExerciseModal({ currentExerciseIds, userGoal, onAdd, onClose }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)' }}>
-      <div className="w-full max-w-md rounded-t-3xl flex flex-col" style={{ background: '#DAEEFF', maxHeight: '85vh' }}>
+      <div className="w-full max-w-md rounded-t-3xl flex flex-col" style={{ background: '#fff', maxHeight: '85vh' }}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <h2 className="font-display" style={{ fontSize: '1.5rem', fontStyle: 'italic' }}>Add exercise</h2>
@@ -223,7 +224,7 @@ function AddExerciseModal({ currentExerciseIds, userGoal, onAdd, onClose }: {
           <div className="px-5 pb-6">
             {!aiResult && !loading && (
               <>
-                <p style={{ fontSize: '0.85rem', color: '#888', marginBottom: 16, lineHeight: 1.5 }}>
+                <p style={{ fontSize: '0.85rem', color: '#444', marginBottom: 16, lineHeight: 1.5 }}>
                   AI will pick the best exercise to add based on what you've already done today.
                 </p>
                 <button onClick={handleAISuggest}
@@ -236,7 +237,7 @@ function AddExerciseModal({ currentExerciseIds, userGoal, onAdd, onClose }: {
             {loading && (
               <div className="text-center py-8">
                 <div className="w-10 h-10 rounded-full mx-auto mb-4 animate-spin" style={{ border: '3px solid #1a1a1a', borderTopColor: 'transparent' }} />
-                <p style={{ fontSize: '0.85rem', color: '#888' }}>AI thinking...</p>
+                <p style={{ fontSize: '0.85rem', color: '#444' }}>AI thinking...</p>
               </div>
             )}
             {error && <p style={{ fontSize: '0.85rem', color: '#e11d48', marginBottom: 12 }}>{error}</p>}
@@ -392,16 +393,16 @@ export default function ActiveWorkout() {
       {/* Sticky header */}
       <div className="sticky top-0 z-10 px-4 pt-4 pb-3" style={{ background: 'rgba(192,224,255,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid #A8CFEE' }}>
         <div className="flex items-center justify-between mb-3">
-          <button onClick={() => router.push('/')} className="btn-press px-3 py-1.5 rounded-xl text-sm font-medium" style={{ background: '#fff', color: '#555' }}>
-            ✕ Exit
+          <button onClick={() => router.push('/')} className="btn-press w-9 h-9 rounded-xl flex items-center justify-center font-bold text-base" style={{ background: '#fff', color: '#253A82' }}>
+            ✕
           </button>
-          <p className="font-display" style={{ fontSize: '1.1rem', fontStyle: 'italic' }}>{workout.name}</p>
-          <div className="px-3 py-1.5 rounded-xl text-sm font-bold" style={{ background: completedSets === totalSets ? '#E8FBF0' : '#F2F0EB', color: completedSets === totalSets ? '#16a34a' : '#888' }}>
+          <p className="font-display" style={{ fontSize: '1.1rem', fontStyle: 'italic', color: '#253A82' }}>{workout.name}</p>
+          <div className="px-3 py-1.5 rounded-xl text-sm font-bold whitespace-nowrap" style={{ background: completedSets === totalSets ? '#E3FC87' : '#253A82', color: completedSets === totalSets ? '#253A82' : '#fff' }}>
             {completedSets}/{totalSets}
           </div>
         </div>
-        <div className="h-2 rounded-full overflow-hidden" style={{ background: '#E8E4DC' }}>
-          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progress}%`, background: '#E3FC87' }} />
+        <div className="h-2 rounded-full overflow-hidden" style={{ background: '#C5B4F0' }}>
+          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progress}%`, background: 'linear-gradient(90deg,#88A2FF,#E3FC87)' }} />
         </div>
       </div>
 
@@ -409,10 +410,10 @@ export default function ActiveWorkout() {
       {workout.reasoning && (
         <div className="mx-4 mt-4 rounded-2xl p-4 card-shadow" style={{ background: '#fff' }}>
           <div className="flex items-center gap-2 mb-2">
-            <div className="w-2 h-2 rounded-full" style={{ background: '#E3FC87' }} />
-            <p style={{ fontSize: '0.65rem', fontWeight: 600, color: '#2DD87A', letterSpacing: '0.15em' }}>AI REASONING</p>
+            <div className="w-2 h-2 rounded-full" style={{ background: '#88A2FF' }} />
+            <p style={{ fontSize: '0.65rem', fontWeight: 600, color: '#88A2FF', letterSpacing: '0.15em' }}>AI REASONING</p>
           </div>
-          <p style={{ fontSize: '0.82rem', color: '#888', lineHeight: 1.6 }}>{workout.reasoning}</p>
+          <p style={{ fontSize: '0.82rem', color: '#444', lineHeight: 1.6 }}>{workout.reasoning}</p>
         </div>
       )}
 
@@ -436,19 +437,27 @@ export default function ActiveWorkout() {
                         return <span key={m} className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: c.bg, color: c.color }}>{m}</span>
                       })}
                     </div>
+                    {exercise.instructions && (
+                      <p style={{ fontSize: '0.73rem', color: '#555', marginTop: 6, lineHeight: 1.4, fontStyle: 'italic' }}>💡 {exercise.instructions}</p>
+                    )}
                   </div>
                   <button onClick={() => setSwapTarget(ex.exerciseId)}
                     className="btn-press flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-medium"
-                    style={{ background: '#DAEEFF', color: '#888' }}>
+                    style={{ background: '#fff', color: '#888' }}>
                     ⇄ Swap
                   </button>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3 mt-1 flex-wrap">
                   {ex.lastWeightKg != null && ex.lastWeightKg > 0 && (
-                    <span style={{ fontSize: '0.78rem', color: '#bbb' }}>Last: {ex.lastWeightKg} kg</span>
+                    <span style={{ fontSize: '0.75rem', color: '#666' }}>Last: {ex.lastWeightKg} kg</span>
                   )}
-                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#2DD87A' }}>AI: {ex.suggestedWeightKg} kg</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#88A2FF' }}>AI: {ex.suggestedWeightKg} kg</span>
+                  {ex.notes && (
+                    <span style={{ fontSize: '0.7rem', color: '#88A2FF', background: '#EEF2FF', borderRadius: 8, padding: '2px 8px', fontStyle: 'italic' }}>
+                      {ex.notes}
+                    </span>
+                  )}
                 </div>
 
                 {ex.substituteReason && (
@@ -458,9 +467,9 @@ export default function ActiveWorkout() {
 
               <div className="flex items-center gap-2 px-4 pb-1">
                 <span className="w-6" />
-                <span className="flex-1 text-center" style={{ fontSize: '0.6rem', color: '#ddd', letterSpacing: '0.12em', fontWeight: 600 }}>WEIGHT</span>
+                <span className="flex-1 text-center" style={{ fontSize: '0.6rem', color: '#888', letterSpacing: '0.12em', fontWeight: 700 }}>WEIGHT</span>
                 <span className="w-5" />
-                <span className="flex-1 text-center" style={{ fontSize: '0.6rem', color: '#ddd', letterSpacing: '0.12em', fontWeight: 600 }}>REPS</span>
+                <span className="flex-1 text-center" style={{ fontSize: '0.6rem', color: '#888', letterSpacing: '0.12em', fontWeight: 700 }}>REPS</span>
                 <span className="w-11" />
                 <span className="w-8" />
               </div>
@@ -473,7 +482,7 @@ export default function ActiveWorkout() {
                 ))}
                 <button onClick={() => addSet(exIdx)}
                   className="btn-press w-full mt-1 mb-2 py-2.5 rounded-2xl text-sm font-semibold flex items-center justify-center gap-1.5"
-                  style={{ background: '#DAEEFF', color: '#888' }}>
+                  style={{ background: '#fff', color: '#888' }}>
                   <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>+</span> Add set
                 </button>
               </div>
@@ -483,7 +492,7 @@ export default function ActiveWorkout() {
       </div>
 
       {/* Finish */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md px-4 pb-8 pt-4" style={{ background: 'linear-gradient(to top, #F2F0EB 70%, transparent)' }}>
+      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md px-4 pb-8 pt-4" style={{ background: 'linear-gradient(to top, #C0E0FF 70%, transparent)' }}>
         <div className="flex gap-3">
           <button
             onClick={() => setShowAddExercise(true)}
@@ -495,8 +504,8 @@ export default function ActiveWorkout() {
             onClick={() => { setCurrentWorkout({ ...workout, completed: true }); router.push('/workout/done') }}
             className="btn-press flex-1 py-4 rounded-2xl font-semibold transition-all duration-300 card-shadow-lg"
             style={{
-              background: allDone ? '#1a1a1a' : '#E8E4DC',
-              color: allDone ? '#fff' : '#bbb',
+              background: allDone ? '#253A82' : '#88A2FF',
+              color: '#fff',
               fontSize: '1rem',
             }}
           >

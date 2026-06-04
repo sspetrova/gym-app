@@ -155,6 +155,7 @@ export default function NewWorkout() {
           suggestedWeightKg: ex.suggestedWeightKg,
           lastWeightKg: ex.lastWeightKg,
           substituteReason: ex.substituteReason,
+          notes: ex.notes,
           sets: buildProgressiveSets(ex.suggestedWeightKg, ex.sets, ex.reps),
         })),
       }

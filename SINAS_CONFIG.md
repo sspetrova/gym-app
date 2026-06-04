@@ -255,26 +255,28 @@ def calculate_suggested_weight(
     }
     reps = reps_by_goal.get(goal, 10)
 
-    # Base weight multiplier by goal and energy
-    multipliers = {
-        "strength": 0.85 + energy_level * 0.025,
-        "hypertrophy": 0.70 + energy_level * 0.04,
-        "endurance": 0.55 + energy_level * 0.03
-    }
-    multiplier = multipliers.get(goal, 0.75)
-
-    # Clamp for low energy
-    if energy_level <= 2:
-        multiplier = min(multiplier, 0.65)
+    # Start from last weight — only adjust up or down, never rebase from a %
+    suggested = last_weight_kg
+    reason = f"Matching last weight ({last_weight_kg}kg)"
 
     # Plateau = bump up
     if is_plateaued:
         suggested = last_weight_kg + 2.5
         reason = f"Progressive overload: +2.5kg from {last_weight_kg}kg — stuck 3+ sessions"
-    else:
-        raw = last_weight_kg * multiplier
-        suggested = round(raw / 2.5) * 2.5  # Round to nearest 2.5kg
-        reason = f"{round(multiplier * 100)}% of last weight ({last_weight_kg}kg), energy {energy_level}/5"
+
+    # Energy deductions — small steps, never more than -10kg
+    if energy_level == 1:
+        suggested = max(0, last_weight_kg - 10)
+        reason = f"Active recovery: -10kg from last ({last_weight_kg}kg), energy 1/5"
+    elif energy_level == 2:
+        suggested = max(0, last_weight_kg - 5)
+        reason = f"Low energy: -5kg from last ({last_weight_kg}kg), energy 2/5"
+    elif energy_level == 5 and not is_plateaued:
+        suggested = last_weight_kg + 2.5
+        reason = f"High energy: +2.5kg from last ({last_weight_kg}kg), energy 5/5"
+
+    # Round to nearest 2.5
+    suggested = round(suggested / 2.5) * 2.5
 
     # Recovery feedback adjustments
     if recovery_feedback == "overworked":
@@ -356,52 +358,35 @@ def check_muscle_recovery(
 ---
 
 ### FUNCTION 5: filter_exercises_by_injury
-**Purpose:** Returns which exercises to exclude and which are safe, given a list of injuries. Call this before selecting any exercises for the workout.
+**Purpose:** Returns which exercises to exclude and which are safe, given a list of injuries. Reads injuryRisk directly from exercise_definitions — works automatically for any exercise added to the library.
 
 ```python
-def filter_exercises_by_injury(injuries: list) -> dict:
+def filter_exercises_by_injury(injuries: list, exercise_definitions: list) -> dict:
     """
     Args:
         injuries: list of injury strings e.g. ['knee', 'shoulder']
+        exercise_definitions: full exercise library, each item has keys:
+                              id (str), muscleGroups (list), injuryRisk (list)
     Returns:
         dict: {excluded: list, allowed: list, rules: list}
     """
-    INJURY_EXCLUSIONS = {
-        "knee": ["barbell_squat", "goblet_squat", "split_squat", "leg_extension", "leg_curl", "leg_press"],
-        "lower back": ["deadlift", "romanian_deadlift", "barbell_row", "barbell_squat", "cable_crunch", "plank"],
-        "shoulder": ["overhead_press", "dumbbell_shoulder_press", "lateral_raise", "cable_lateral_raise", "pull_up", "dips", "incline_dumbbell_press"],
-        "wrist": ["barbell_curl", "push_up", "skull_crusher", "dips"],
-        "hip": ["hip_thrust", "split_squat", "barbell_squat", "deadlift", "romanian_deadlift"],
-        "neck": ["overhead_press", "cable_crunch"],
-        "elbow": ["barbell_curl", "skull_crusher", "tricep_pushdown", "cable_curl", "overhead_tricep_extension"],
-        "ankle": ["calf_raise"],
-    }
-
-    ALL_EXERCISES = [
-        "dumbbell_bench_press", "incline_dumbbell_press", "cable_fly", "push_up",
-        "barbell_row", "cable_row", "dumbbell_row", "lat_pulldown", "pull_up",
-        "deadlift", "romanian_deadlift", "overhead_press", "dumbbell_shoulder_press",
-        "lateral_raise", "cable_lateral_raise", "face_pull", "barbell_curl",
-        "dumbbell_curl", "cable_curl", "hammer_curl", "tricep_pushdown",
-        "overhead_tricep_extension", "skull_crusher", "dips", "barbell_squat",
-        "leg_press", "goblet_squat", "split_squat", "leg_extension", "leg_curl",
-        "calf_raise", "hip_thrust", "glute_bridge", "cable_kickback",
-        "plank", "cable_crunch", "dead_bug",
-    ]
-
     excluded = set()
     rules = []
 
     for injury in (injuries or []):
         key = injury.lower().strip()
-        to_exclude = INJURY_EXCLUSIONS.get(key, [])
+        to_exclude = [
+            e["id"] for e in exercise_definitions
+            if key in [r.lower() for r in e.get("injuryRisk", [])]
+        ]
         excluded.update(to_exclude)
         if to_exclude:
             rules.append(f"{injury}: excluding {', '.join(to_exclude)}")
 
+    all_ids = [e["id"] for e in exercise_definitions]
     return {
         "excluded": list(excluded),
-        "allowed": [e for e in ALL_EXERCISES if e not in excluded],
+        "allowed": [ex_id for ex_id in all_ids if ex_id not in excluded],
         "rules": rules
     }
 ```
@@ -594,6 +579,280 @@ WHERE w.user_id = :userId AND w.completed = true
   AND w.date >= NOW() - INTERVAL '8 weeks'
 GROUP BY DATE_TRUNC('week', w.date)
 ORDER BY week_start DESC;
+```
+
+---
+
+### FUNCTION 9: validate_exercise_focus
+**Purpose:** After generating a workout, validates every exercise actually targets the requested focus muscles. Reads muscleGroups directly from exercise_definitions — works automatically for any exercise added to the library.
+
+```python
+def validate_exercise_focus(exercises: list, focus_muscles: list, exercise_definitions: list) -> list:
+    """
+    Args:
+        exercises: list of {exerciseId, sets, reps, suggestedWeightKg, lastWeightKg}
+        focus_muscles: list of requested muscle groups e.g. ['legs', 'glutes']
+        exercise_definitions: full exercise library, each item has keys:
+                              id (str), muscleGroups (list)
+    Returns:
+        validated exercises list with any non-matching ones flagged
+    """
+    if not focus_muscles:
+        return exercises
+
+    # Build lookup from the live exercise library — never hardcoded
+    muscle_map = {e["id"]: [m.lower() for m in e.get("muscleGroups", [])] for e in exercise_definitions}
+    focus_set = set(f.lower() for f in focus_muscles)
+    result = []
+
+    for ex in exercises:
+        ex_muscles = set(muscle_map.get(ex.get("exerciseId", ""), []))
+        if ex_muscles & focus_set:
+            result.append(ex)
+        else:
+            flagged = dict(ex)
+            flagged["substituteReason"] = f"Does not match focus: {', '.join(focus_muscles)}"
+            result.append(flagged)
+
+    return result
+```
+
+---
+
+### FUNCTION 10: calculate_weekly_volume
+**Purpose:** Calculates total sets per muscle group for the current week. Reads muscleGroups from exercise_definitions — works automatically for any exercise added to the library.
+
+```python
+def calculate_weekly_volume(history: list, current_week_start: str, exercise_definitions: list) -> dict:
+    """
+    Args:
+        history: list of workout summary dicts with date and exercises
+        current_week_start: ISO date string for Monday of current week (e.g. '2025-01-06')
+        exercise_definitions: full exercise library, each item has keys:
+                              id (str), muscleGroups (list)
+    Returns:
+        dict mapping muscle_group -> total_sets this week
+    """
+    from datetime import datetime, timedelta
+
+    # Build lookup dynamically — never hardcoded
+    muscle_map = {e["id"]: [m.lower() for m in e.get("muscleGroups", [])] for e in exercise_definitions}
+
+    try:
+        week_start = datetime.fromisoformat(current_week_start)
+        week_end = week_start + timedelta(days=7)
+    except Exception:
+        return {}
+
+    volume = {}
+
+    for workout in history:
+        try:
+            w_date = datetime.fromisoformat(workout.get("date", "").replace("Z", ""))
+        except Exception:
+            continue
+
+        if not (week_start <= w_date < week_end):
+            continue
+
+        for ex in workout.get("exercises", []):
+            ex_id = ex.get("exerciseId", "")
+            sets = ex.get("totalSets", 0)
+            for muscle in muscle_map.get(ex_id, []):
+                volume[muscle] = volume.get(muscle, 0) + sets
+
+    return volume
+```
+
+---
+
+### FUNCTION 11: suggest_warmup
+**Purpose:** Generates a warm-up protocol tailored to the first exercise of the session. Call this before showing the workout to the user.
+
+```python
+def suggest_warmup(first_exercise_id: str, target_weight_kg: float) -> dict:
+    """
+    Args:
+        first_exercise_id: the exerciseId of the first working exercise
+        target_weight_kg: working weight for that exercise
+    Returns:
+        dict: {warmupSets: list[{weightKg, reps, note}], generalWarmup: str}
+    """
+    COMPOUND_IDS = {
+        "barbell_bench_press", "incline_barbell_press", "decline_bench_press",
+        "barbell_squat", "front_squat", "deadlift", "romanian_deadlift",
+        "overhead_press", "barbell_row", "hip_thrust", "sumo_deadlift",
+        "good_morning", "close_grip_bench",
+    }
+    UPPER_BODY_IDS = {
+        "dumbbell_bench_press", "incline_dumbbell_press", "dumbbell_shoulder_press",
+        "lat_pulldown", "pull_up", "barbell_curl", "skull_crusher",
+    }
+
+    if first_exercise_id in COMPOUND_IDS and target_weight_kg and target_weight_kg > 0:
+        warmup_sets = [
+            {"weightKg": 0, "reps": 10, "note": "Empty bar / bodyweight — groove the pattern"},
+            {"weightKg": round(target_weight_kg * 0.4 / 2.5) * 2.5, "reps": 8, "note": "40% — prime the nervous system"},
+            {"weightKg": round(target_weight_kg * 0.6 / 2.5) * 2.5, "reps": 5, "note": "60% — build up"},
+            {"weightKg": round(target_weight_kg * 0.8 / 2.5) * 2.5, "reps": 3, "note": "80% — nearly there"},
+        ]
+        general = "5 min light cardio + dynamic stretching for working joints"
+    elif first_exercise_id in UPPER_BODY_IDS and target_weight_kg and target_weight_kg > 0:
+        warmup_sets = [
+            {"weightKg": round(target_weight_kg * 0.5 / 2.5) * 2.5, "reps": 10, "note": "50% — feel the muscle"},
+            {"weightKg": round(target_weight_kg * 0.75 / 2.5) * 2.5, "reps": 6, "note": "75% — ramp up"},
+        ]
+        general = "5 min light cardio + arm circles, band pull-aparts"
+    else:
+        warmup_sets = [
+            {"weightKg": 0, "reps": 12, "note": "Bodyweight movement to activate the target muscle"},
+        ]
+        general = "5 min light cardio + dynamic mobility for target area"
+
+    return {"warmupSets": warmup_sets, "generalWarmup": general}
+```
+
+---
+
+### FUNCTION 12: compute_training_streak
+**Purpose:** Counts consecutive days the user has trained. Useful for motivational messaging and flagging rest-day needs.
+
+```python
+def compute_training_streak(history: list, today: str) -> dict:
+    """
+    Args:
+        history: list of workout summary dicts with 'date' (ISO string)
+        today: today's ISO date string e.g. '2025-01-10'
+    Returns:
+        dict: {currentStreak: int, longestStreak: int, restDayAdvised: bool}
+    """
+    from datetime import datetime, timedelta
+
+    try:
+        today_dt = datetime.fromisoformat(today).date()
+    except Exception:
+        return {"currentStreak": 0, "longestStreak": 0, "restDayAdvised": False}
+
+    # Unique training dates
+    trained_dates = set()
+    for w in history:
+        try:
+            d = datetime.fromisoformat(w.get("date", "").replace("Z", "")).date()
+            trained_dates.add(d)
+        except Exception:
+            pass
+
+    # Current streak — walk backwards from today
+    current_streak = 0
+    check = today_dt
+    while check in trained_dates:
+        current_streak += 1
+        check -= timedelta(days=1)
+
+    # Longest streak ever
+    sorted_dates = sorted(trained_dates)
+    longest = 0
+    run = 1
+    for i in range(1, len(sorted_dates)):
+        if (sorted_dates[i] - sorted_dates[i - 1]).days == 1:
+            run += 1
+            longest = max(longest, run)
+        else:
+            run = 1
+    longest = max(longest, run, current_streak)
+
+    # Advise rest after 5+ consecutive days
+    rest_day_advised = current_streak >= 5
+
+    return {
+        "currentStreak": current_streak,
+        "longestStreak": longest,
+        "restDayAdvised": rest_day_advised,
+    }
+```
+
+---
+
+### FUNCTION 13: calculate_session_tonnage
+**Purpose:** Calculates total tonnage (weight × reps × sets) for a completed session and compares to the previous session for the same split. Returns a trend.
+
+```python
+def calculate_session_tonnage(exercises: list) -> dict:
+    """
+    Args:
+        exercises: list of {exerciseId, sets, reps, maxWeightKg}
+    Returns:
+        dict: {totalTonnageKg: float, perExercise: list[{exerciseId, tonnageKg}]}
+    """
+    per_exercise = []
+    total = 0.0
+
+    for ex in exercises:
+        weight = ex.get("maxWeightKg") or ex.get("suggestedWeightKg") or 0
+        sets = ex.get("sets") or ex.get("totalSets") or 0
+        reps = ex.get("reps") or ex.get("avgReps") or 0
+        tonnage = round(weight * sets * reps, 1)
+        total += tonnage
+        per_exercise.append({"exerciseId": ex.get("exerciseId", ""), "tonnageKg": tonnage})
+
+    return {
+        "totalTonnageKg": round(total, 1),
+        "perExercise": per_exercise,
+    }
+```
+
+---
+
+### FUNCTION 14: get_muscle_frequency_this_week
+**Purpose:** Returns how many times each muscle group has been trained this week. Reads muscleGroups from exercise_definitions — works automatically for any exercise added to the library.
+
+```python
+def get_muscle_frequency_this_week(history: list, current_week_start: str, exercise_definitions: list) -> dict:
+    """
+    Args:
+        history: list of workout summary dicts
+        current_week_start: ISO date string for Monday of current week
+        exercise_definitions: full exercise library, each item has keys:
+                              id (str), muscleGroups (list)
+    Returns:
+        dict: {muscle_group -> session_count_this_week, warnings: list[str]}
+    """
+    from datetime import datetime, timedelta
+
+    # Build lookup dynamically — never hardcoded
+    muscle_map = {e["id"]: [m.lower() for m in e.get("muscleGroups", [])] for e in exercise_definitions}
+
+    try:
+        week_start = datetime.fromisoformat(current_week_start).date()
+        week_end = week_start + timedelta(days=7)
+    except Exception:
+        return {"warnings": []}
+
+    frequency = {}
+
+    for workout in history:
+        try:
+            w_date = datetime.fromisoformat(workout.get("date", "").replace("Z", "")).date()
+        except Exception:
+            continue
+
+        if not (week_start <= w_date < week_end):
+            continue
+
+        muscles_this_session = set()
+        for ex in workout.get("exercises", []):
+            for muscle in muscle_map.get(ex.get("exerciseId", ""), []):
+                muscles_this_session.add(muscle)
+
+        for muscle in muscles_this_session:
+            frequency[muscle] = frequency.get(muscle, 0) + 1
+
+    warnings = [
+        f"{muscle} trained {count}x this week — consider a rest day for this group"
+        for muscle, count in frequency.items() if count >= 3
+    ]
+
+    return {**frequency, "warnings": warnings}
 ```
 
 ---
