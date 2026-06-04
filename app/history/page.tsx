@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { getAllWorkouts } from '@/lib/storage'
+import { getAllWorkouts, deleteWorkout } from '@/lib/storage'
 import { getExerciseById, EXERCISES } from '@/lib/exercises'
 import type { Workout } from '@/lib/types'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
@@ -35,8 +35,9 @@ function groupByWeek(workouts: Workout[]) {
 
 const RATING_EMOJIS = ['😴','😐','🙂','😤','🔥']
 
-function WorkoutCard({ workout }: { workout: Workout }) {
+function WorkoutCard({ workout, onDelete }: { workout: Workout; onDelete: (id: string) => void }) {
   const [open, setOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const muscleGroups = Array.from(new Set(workout.exercises.flatMap((e) => getExerciseById(e.exerciseId)?.muscleGroups ?? [])))
 
   return (
@@ -65,6 +66,23 @@ function WorkoutCard({ workout }: { workout: Workout }) {
           </div>
         </div>
       </button>
+      {/* Delete row */}
+      {open && !confirmDelete && (
+        <div className="px-4 pb-3 flex justify-end">
+          <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(true) }}
+            className="btn-press flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold"
+            style={{ background: '#FFF1F2', color: '#e11d48' }}>
+            🗑 Delete workout
+          </button>
+        </div>
+      )}
+      {open && confirmDelete && (
+        <div className="px-4 pb-3 flex items-center gap-2 justify-end">
+          <p style={{ fontSize: '0.78rem', color: '#555' }}>Remove this session?</p>
+          <button onClick={() => setConfirmDelete(false)} className="btn-press px-3 py-1.5 rounded-xl text-xs font-medium" style={{ background: '#F2F0EB', color: '#555' }}>Cancel</button>
+          <button onClick={() => onDelete(workout.id)} className="btn-press px-3 py-1.5 rounded-xl text-xs font-bold" style={{ background: '#e11d48', color: '#fff' }}>Delete</button>
+        </div>
+      )}
 
       {open && (
         <div className="border-t px-4 pb-4 pt-3 animate-fade-in" style={{ borderColor: '#F2F0EB', opacity: 0 }}>
@@ -134,6 +152,11 @@ export default function History() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => { setWorkouts(getAllWorkouts().filter((w) => w.completed)); setMounted(true) }, [])
+
+  function handleDelete(id: string) {
+    deleteWorkout(id)
+    setWorkouts((prev) => prev.filter((w) => w.id !== id))
+  }
 
   const filtered = useMemo(() => filter === 'All' ? workouts : workouts.filter((w) => w.exercises.some((ex) => getExerciseById(ex.exerciseId)?.muscleGroups.includes(filter))), [workouts, filter])
   const weeks = useMemo(() => groupByWeek(filtered), [filtered])
@@ -226,7 +249,7 @@ export default function History() {
           {weeks.map((week) => (
             <div key={week.label} className="mb-6">
               <p style={{ fontSize: '0.65rem', fontWeight: 700, color: '#6B4FA8', letterSpacing: '0.15em', marginBottom: 10 }}>{week.label.toUpperCase()}</p>
-              {week.workouts.map((w) => <WorkoutCard key={w.id} workout={w} />)}
+              {week.workouts.map((w) => <WorkoutCard key={w.id} workout={w} onDelete={handleDelete} />)}
             </div>
           ))}
         </div>

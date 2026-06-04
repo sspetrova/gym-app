@@ -32,16 +32,54 @@ const DURATIONS = [
   { min: 90, label: '90 min', sub: 'Long session' },
 ]
 
-const YESTERDAY_ACTIVITIES = [
-  { id: 'rest',      icon: '😴', label: 'Rest' },
-  { id: 'running',   icon: '🏃', label: 'Running' },
-  { id: 'cycling',   icon: '🚴', label: 'Cycling' },
-  { id: 'football',  icon: '⚽', label: 'Football' },
-  { id: 'swimming',  icon: '🏊', label: 'Swimming' },
-  { id: 'yoga',      icon: '🧘', label: 'Yoga' },
-  { id: 'gym',       icon: '🏋️', label: 'Gym' },
-  { id: 'other',     icon: '🎯', label: 'Other' },
+const YESTERDAY_ACTIVITY_GROUPS = [
+  {
+    group: 'Recovery',
+    items: [
+      { id: 'rest',    icon: '😴', label: 'Rest' },
+      { id: 'yoga',    icon: '🧘', label: 'Yoga' },
+      { id: 'walk',    icon: '🚶', label: 'Walk' },
+      { id: 'stretch', icon: '🤸', label: 'Stretch' },
+    ],
+  },
+  {
+    group: 'Cardio',
+    items: [
+      { id: 'running',  icon: '🏃', label: 'Running' },
+      { id: 'cycling',  icon: '🚴', label: 'Cycling' },
+      { id: 'swimming', icon: '🏊', label: 'Swimming' },
+      { id: 'hiit',     icon: '⚡', label: 'HIIT' },
+    ],
+  },
+  {
+    group: 'Ball Sports',
+    items: [
+      { id: 'football',    icon: '⚽', label: 'Football' },
+      { id: 'basketball',  icon: '🏀', label: 'Basketball' },
+      { id: 'volleyball',  icon: '🏐', label: 'Volleyball' },
+      { id: 'rugby',       icon: '🏉', label: 'Rugby' },
+    ],
+  },
+  {
+    group: 'Racket Sports',
+    items: [
+      { id: 'padel',     icon: '🎾', label: 'Padel' },
+      { id: 'tennis',    icon: '🎾', label: 'Tennis' },
+      { id: 'squash',    icon: '🟡', label: 'Squash' },
+      { id: 'badminton', icon: '🏸', label: 'Badminton' },
+    ],
+  },
+  {
+    group: 'Other',
+    items: [
+      { id: 'gym',      icon: '🏋️', label: 'Gym' },
+      { id: 'climbing', icon: '🧗', label: 'Climbing' },
+      { id: 'martial',  icon: '🥊', label: 'Martial Arts' },
+      { id: 'other',    icon: '🎯', label: 'Other' },
+    ],
+  },
 ]
+const YESTERDAY_ACTIVITIES = YESTERDAY_ACTIVITY_GROUPS.flatMap(g => g.items)
 
 const ENERGY_LABELS = ['😴', '😐', '🙂', '😤', '🔥']
 const SLEEP_LABELS  = ['😵', '😪', '😑', '😌', '🌟']
@@ -87,16 +125,18 @@ function SorenessBtn({ label, value, onChange }: { label: string; value: number;
 // Builds ascending-weight sets: e.g. 25 → 27.5 → 30 instead of flat 30 × 3
 function buildProgressiveSets(targetWeightKg: number, numSets: number, reps: number) {
   if (!targetWeightKg || targetWeightKg === 0) {
-    return Array.from({ length: numSets }, () => ({ weightKg: 0, reps, completed: false }))
+    return Array.from({ length: numSets }, () => ({ weightKg: 0, reps, completed: false, isWarmup: false }))
   }
-  // Increment per step: smaller for light weights, bigger for heavy
-  const increment = targetWeightKg >= 60 ? 5 : targetWeightKg >= 30 ? 2.5 : 2.5
-  return Array.from({ length: numSets }, (_, i) => {
+  const increment = targetWeightKg >= 60 ? 5 : 2.5
+  // Always prepend 1 warm-up set at ~60% before the working sets
+  const warmupWeight = Math.max(0, Math.round(targetWeightKg * 0.6 / 2.5) * 2.5)
+  const workingSets = Array.from({ length: numSets }, (_, i) => {
     const stepsFromEnd = numSets - 1 - i
     const raw = targetWeightKg - stepsFromEnd * increment
     const weightKg = Math.max(0, Math.round(raw / 2.5) * 2.5)
-    return { weightKg, reps, completed: false }
+    return { weightKg, reps, completed: false, isWarmup: false }
   })
+  return [{ weightKg: warmupWeight, reps: Math.ceil(reps * 0.6), completed: false, isWarmup: true }, ...workingSets]
 }
 
 export default function NewWorkout() {
@@ -258,18 +298,25 @@ export default function NewWorkout() {
 
       {/* Yesterday's activity */}
       <div className="rounded-3xl p-5 mb-6 card-shadow" style={{ background: '#fff' }}>
-        <p style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: 12 }}>🗓 What did you do yesterday?</p>
-        <div className="grid grid-cols-4 gap-2">
-          {YESTERDAY_ACTIVITIES.map((a) => (
-            <button key={a.id} onClick={() => setCheckin((c) => ({ ...c, yesterdayActivity: a.id }))}
-              className="btn-press py-3 rounded-2xl border-2 text-center transition-all duration-200"
-              style={{
-                background: checkin.yesterdayActivity === a.id ? '#253A82' : '#DAEEFF',
-                borderColor: checkin.yesterdayActivity === a.id ? '#253A82' : 'transparent',
-              }}>
-              <p style={{ fontSize: '1.2rem' }}>{a.icon}</p>
-              <p style={{ fontSize: '0.62rem', fontWeight: 600, marginTop: 3, color: checkin.yesterdayActivity === a.id ? '#fff' : '#888' }}>{a.label}</p>
-            </button>
+        <p style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: 14 }}>🗓 What did you do yesterday?</p>
+        <div className="space-y-4">
+          {YESTERDAY_ACTIVITY_GROUPS.map((group) => (
+            <div key={group.group}>
+              <p style={{ fontSize: '0.6rem', fontWeight: 800, color: '#999', letterSpacing: '0.12em', marginBottom: 8 }}>{group.group.toUpperCase()}</p>
+              <div className="grid grid-cols-4 gap-2">
+                {group.items.map((a) => (
+                  <button key={a.id} onClick={() => setCheckin((c) => ({ ...c, yesterdayActivity: a.id }))}
+                    className="btn-press py-3 rounded-2xl border-2 text-center transition-all duration-200"
+                    style={{
+                      background: checkin.yesterdayActivity === a.id ? '#253A82' : '#DAEEFF',
+                      borderColor: checkin.yesterdayActivity === a.id ? '#253A82' : 'transparent',
+                    }}>
+                    <p style={{ fontSize: '1.2rem' }}>{a.icon}</p>
+                    <p style={{ fontSize: '0.58rem', fontWeight: 600, marginTop: 3, color: checkin.yesterdayActivity === a.id ? '#fff' : '#555' }}>{a.label}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       </div>

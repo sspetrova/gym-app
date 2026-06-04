@@ -35,6 +35,11 @@ export function saveWorkout(workout: Workout): void {
   persistWorkouts(all)
 }
 
+export function deleteWorkout(id: string): void {
+  const all = loadWorkouts()
+  persistWorkouts(all.filter((w) => w.id !== id))
+}
+
 export function getWorkoutHistory(limit = 20): Workout[] {
   return loadWorkouts()
     .filter((w) => w.completed)
@@ -564,6 +569,112 @@ export function seedDemoData(): void {
           sets: [{ weightKg: 65, reps: 10, completed: true }, { weightKg: 70, reps: 10, completed: true }, { weightKg: 72.5, reps: 8, completed: true }] },
         { exerciseId: 'leg_extension', suggestedWeightKg: 55, lastWeightKg: 52.5,
           sets: [{ weightKg: 50, reps: 12, completed: true }, { weightKg: 52.5, reps: 12, completed: true }, { weightKg: 55, reps: 10, completed: true }] },
+      ],
+    },
+
+    // ── Extra: bad sessions, deloads, AI swaps ────────────────────────────────
+
+    // Low energy + overworked — AI kept weights light
+    {
+      id: 'seed_bad_1',
+      date: daysAgo(36),
+      name: 'Recovery Push — Low Energy',
+      reasoning: 'Energy was 1/5 and you felt overworked from last session. Dropped all weights 15% and kept it short. No shame in a recovery day — you\'ll come back stronger.',
+      completed: true, injuries: [], userGoal: 'hypertrophy', rating: 2, recoveryFeedback: 'overworked',
+      exercises: [
+        { exerciseId: 'push_up', suggestedWeightKg: 0, lastWeightKg: 0,
+          substituteReason: 'AI replaced bench press — energy too low for heavy compounds',
+          sets: [{ weightKg: 0, reps: 15, completed: true }, { weightKg: 0, reps: 12, completed: true }] },
+        { exerciseId: 'cable_fly', suggestedWeightKg: 12, lastWeightKg: 16,
+          notes: 'Dropped 25% — energy 1/5, recovery session',
+          sets: [{ weightKg: 10, reps: 15, completed: true }, { weightKg: 12, reps: 15, completed: true }] },
+        { exerciseId: 'dead_bug', suggestedWeightKg: 0, lastWeightKg: 0,
+          sets: [{ weightKg: 0, reps: 12, completed: true }, { weightKg: 0, reps: 12, completed: true }] },
+      ],
+    },
+
+    // Shoulder injury — AI swapped all shoulder/overhead work
+    {
+      id: 'seed_injury_1',
+      date: daysAgo(29),
+      name: 'Push Day — Shoulder Injury Adapted',
+      reasoning: 'Shoulder pain flagged. Replaced all overhead pressing and lateral raises with cable alternatives below shoulder height. Focus shifted to chest and triceps only — still a productive session.',
+      completed: true, injuries: ['shoulder'], userGoal: 'hypertrophy', rating: 3,
+      exercises: [
+        { exerciseId: 'dumbbell_bench_press', suggestedWeightKg: 28, lastWeightKg: 26,
+          sets: [{ weightKg: 24, reps: 10, completed: true }, { weightKg: 26, reps: 10, completed: true }, { weightKg: 28, reps: 8, completed: true }] },
+        { exerciseId: 'cable_fly', suggestedWeightKg: 16, lastWeightKg: 14,
+          sets: [{ weightKg: 14, reps: 12, completed: true }, { weightKg: 16, reps: 12, completed: true }, { weightKg: 16, reps: 10, completed: true }] },
+        { exerciseId: 'tricep_pushdown', suggestedWeightKg: 32.5, lastWeightKg: 30,
+          substituteReason: 'Replaced overhead tricep extension — shoulder injury',
+          sets: [{ weightKg: 27.5, reps: 12, completed: true }, { weightKg: 30, reps: 12, completed: true }, { weightKg: 32.5, reps: 10, completed: true }] },
+        { exerciseId: 'cable_row', suggestedWeightKg: 50, lastWeightKg: 47.5,
+          substituteReason: 'Added cable row instead of lateral raises — safe for shoulder',
+          sets: [{ weightKg: 45, reps: 12, completed: true }, { weightKg: 50, reps: 12, completed: true }, { weightKg: 50, reps: 10, completed: true }] },
+      ],
+    },
+
+    // Mid-session swap — user didn't like the exercise
+    {
+      id: 'seed_swap_1',
+      date: daysAgo(22),
+      name: 'Pull Day — Mid-Session Swap',
+      reasoning: 'Good energy, back session. You swapped barbell row (lower back discomfort) for dumbbell row mid-session — smart call. Still hit good volume.',
+      completed: true, injuries: [], userGoal: 'hypertrophy', rating: 4,
+      exercises: [
+        { exerciseId: 'lat_pulldown', suggestedWeightKg: 65, lastWeightKg: 62.5,
+          sets: [{ weightKg: 60, reps: 10, completed: true }, { weightKg: 62.5, reps: 10, completed: true }, { weightKg: 65, reps: 9, completed: true }] },
+        { exerciseId: 'dumbbell_row', suggestedWeightKg: 32, lastWeightKg: 30,
+          substituteReason: 'Swapped from barbell row — lower back felt tight, AI suggested dumbbell row as safer alternative',
+          sets: [{ weightKg: 28, reps: 10, completed: true }, { weightKg: 30, reps: 10, completed: true }, { weightKg: 32, reps: 9, completed: true }] },
+        { exerciseId: 'face_pull', suggestedWeightKg: 22.5, lastWeightKg: 20,
+          sets: [{ weightKg: 20, reps: 15, completed: true }, { weightKg: 22.5, reps: 15, completed: true }, { weightKg: 22.5, reps: 12, completed: true }] },
+        { exerciseId: 'cable_curl', suggestedWeightKg: 20, lastWeightKg: 18,
+          substituteReason: 'AI swapped barbell curl (wrist strain risk noted) for cable curl',
+          sets: [{ weightKg: 17.5, reps: 12, completed: true }, { weightKg: 20, reps: 12, completed: true }, { weightKg: 20, reps: 10, completed: true }] },
+      ],
+    },
+
+    // Really bad session — AI deload triggered
+    {
+      id: 'seed_bad_2',
+      date: daysAgo(16),
+      name: 'Deload Week — Legs',
+      reasoning: 'Two sessions in a row rated 1-2. Deload triggered. All weights reduced 15%, sets kept at 3. This is intentional recovery — your nervous system needs this to come back stronger next week.',
+      completed: true, injuries: [], userGoal: 'hypertrophy', rating: 2, recoveryFeedback: 'tough',
+      exercises: [
+        { exerciseId: 'goblet_squat', suggestedWeightKg: 20, lastWeightKg: 16,
+          notes: 'Deload: -15% from working weight',
+          sets: [{ weightKg: 16, reps: 12, completed: true }, { weightKg: 18, reps: 12, completed: true }, { weightKg: 20, reps: 10, completed: true }] },
+        { exerciseId: 'leg_press', suggestedWeightKg: 95, lastWeightKg: 115,
+          notes: 'Deload: -15% from last session',
+          sets: [{ weightKg: 85, reps: 10, completed: true }, { weightKg: 90, reps: 10, completed: true }, { weightKg: 95, reps: 8, completed: true }] },
+        { exerciseId: 'glute_bridge', suggestedWeightKg: 0, lastWeightKg: 0,
+          substituteReason: 'Replaced hip thrust — going bodyweight only during deload',
+          sets: [{ weightKg: 0, reps: 20, completed: true }, { weightKg: 0, reps: 20, completed: true }, { weightKg: 0, reps: 18, completed: true }] },
+      ],
+    },
+
+    // Incomplete session — user stopped early
+    {
+      id: 'seed_incomplete_1',
+      date: daysAgo(11),
+      name: 'Push Day — Cut Short',
+      reasoning: 'Energy started high but dropped fast. Cut the session at 2 exercises — better to stop than grind through and risk injury.',
+      completed: true, injuries: [], userGoal: 'strength', rating: 1, recoveryFeedback: 'overworked',
+      exercises: [
+        { exerciseId: 'barbell_bench_press', suggestedWeightKg: 82.5, lastWeightKg: 80,
+          sets: [
+            { weightKg: 75, reps: 6, completed: true },
+            { weightKg: 80, reps: 4, completed: true },
+            { weightKg: 82.5, reps: 2, completed: true },
+          ] },
+        { exerciseId: 'incline_dumbbell_press', suggestedWeightKg: 28, lastWeightKg: 26,
+          sets: [
+            { weightKg: 24, reps: 8, completed: true },
+            { weightKg: 26, reps: 5, completed: false },
+            { weightKg: 28, reps: 8, completed: false },
+          ] },
       ],
     },
   ]

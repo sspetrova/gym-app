@@ -2,6 +2,7 @@ export type WorkoutSet = {
   weightKg: number
   reps: number
   completed: boolean
+  isWarmup?: boolean
 }
 
 export type WorkoutExercise = {

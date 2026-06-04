@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getCurrentWorkout, setCurrentWorkout } from '@/lib/storage'
 import { substituteExercise } from '@/lib/ai'
@@ -110,20 +110,39 @@ function SwapModal({ exerciseId, workoutExerciseIds, onConfirm, onCancel }: {
   )
 }
 
-function SetRow({ setIndex, weightKg, reps, completed, onUpdate, onToggle, onDelete, canDelete }: {
-  setIndex: number; weightKg: number; reps: number; completed: boolean
+function SetRow({ setIndex, weightKg, reps, completed, isWarmup, onUpdate, onToggle, onDelete, canDelete }: {
+  setIndex: number; weightKg: number; reps: number; completed: boolean; isWarmup?: boolean
   onUpdate: (w: number, r: number) => void; onToggle: () => void
   onDelete: () => void; canDelete: boolean
 }) {
+  const [weightStr, setWeightStr] = React.useState(String(weightKg))
+  const [repsStr, setRepsStr] = React.useState(String(reps))
+
+  // Sync if parent value changes (e.g. +/- buttons)
+  React.useEffect(() => { setWeightStr(String(weightKg)) }, [weightKg])
+  React.useEffect(() => { setRepsStr(String(reps)) }, [reps])
+
   return (
     <div className={`flex items-center gap-2 py-2 transition-opacity duration-200 ${completed ? 'opacity-50' : ''}`}>
-      <span className="w-6 text-center text-sm font-bold" style={{ color: '#999' }}>{setIndex + 1}</span>
+      <div className="w-6 flex flex-col items-center gap-0.5">
+        <span className="text-sm font-bold" style={{ color: isWarmup ? '#F5C842' : '#999', lineHeight: 1 }}>{setIndex + 1}</span>
+        {isWarmup && <span style={{ fontSize: '0.45rem', fontWeight: 800, color: '#F5C842', letterSpacing: '0.05em' }}>WU</span>}
+      </div>
 
       <div className="flex-1 flex items-center rounded-2xl overflow-hidden" style={{ background: '#fff' }}>
         <button onClick={() => onUpdate(Math.max(0, weightKg - 2.5), reps)} className="btn-press w-9 h-11 flex items-center justify-center text-xl font-light" style={{ color: '#666' }}>−</button>
         <div className="flex-1 flex items-baseline gap-0.5 pl-1">
-          <input type="number" value={weightKg} onChange={(e) => onUpdate(Number(e.target.value) || 0, reps)}
-            onFocus={(e) => e.target.select()}
+          <input
+            type="number" inputMode="decimal"
+            value={weightStr}
+            onChange={(e) => setWeightStr(e.target.value)}
+            onFocus={() => setWeightStr('')}
+            onBlur={() => {
+              const val = parseFloat(weightStr)
+              const final = isNaN(val) ? weightKg : Math.max(0, Math.round(val / 2.5) * 2.5)
+              setWeightStr(String(final))
+              onUpdate(final, reps)
+            }}
             className="w-12 bg-transparent focus:outline-none font-bold text-left" style={{ fontSize: '1rem', color: '#1a1a1a' }} />
           <span style={{ fontSize: '0.65rem', color: '#777' }}>kg</span>
         </div>
@@ -135,8 +154,17 @@ function SetRow({ setIndex, weightKg, reps, completed, onUpdate, onToggle, onDel
       <div className="flex-1 flex items-center rounded-2xl overflow-hidden" style={{ background: '#fff' }}>
         <button onClick={() => onUpdate(weightKg, Math.max(1, reps - 1))} className="btn-press w-9 h-11 flex items-center justify-center text-xl font-light" style={{ color: '#666' }}>−</button>
         <div className="flex-1 flex items-baseline gap-0.5 pl-1">
-          <input type="number" value={reps} onChange={(e) => onUpdate(weightKg, Number(e.target.value) || 1)}
-            onFocus={(e) => e.target.select()}
+          <input
+            type="number" inputMode="numeric"
+            value={repsStr}
+            onChange={(e) => setRepsStr(e.target.value)}
+            onFocus={() => setRepsStr('')}
+            onBlur={() => {
+              const val = parseInt(repsStr)
+              const final = isNaN(val) ? reps : Math.max(1, val)
+              setRepsStr(String(final))
+              onUpdate(weightKg, final)
+            }}
             className="w-10 bg-transparent focus:outline-none font-bold text-left" style={{ fontSize: '1rem', color: '#1a1a1a' }} />
           <span style={{ fontSize: '0.65rem', color: '#777' }}>rep</span>
         </div>
@@ -475,11 +503,24 @@ export default function ActiveWorkout() {
               </div>
 
               <div className="px-3 pb-2">
-                {ex.sets.map((set, setIdx) => (
-                  <SetRow key={setIdx} setIndex={setIdx} weightKg={set.weightKg} reps={set.reps} completed={set.completed}
-                    onUpdate={(w, r) => updateSet(exIdx, setIdx, w, r)} onToggle={() => toggleSet(exIdx, setIdx)}
-                    onDelete={() => deleteSet(exIdx, setIdx)} canDelete={ex.sets.length > 1} />
-                ))}
+                {ex.sets.map((set, setIdx) => {
+                  const prevIsWarmup = setIdx > 0 ? ex.sets[setIdx - 1].isWarmup : null
+                  const showWorkingDivider = set.isWarmup === false && prevIsWarmup === true
+                  return (
+                    <div key={setIdx}>
+                      {showWorkingDivider && (
+                        <div className="flex items-center gap-2 my-1.5">
+                          <div className="flex-1 h-px" style={{ background: '#E8E4DC' }} />
+                          <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#88A2FF', letterSpacing: '0.12em' }}>WORKING SETS</span>
+                          <div className="flex-1 h-px" style={{ background: '#E8E4DC' }} />
+                        </div>
+                      )}
+                      <SetRow setIndex={setIdx} weightKg={set.weightKg} reps={set.reps} completed={set.completed} isWarmup={set.isWarmup}
+                        onUpdate={(w, r) => updateSet(exIdx, setIdx, w, r)} onToggle={() => toggleSet(exIdx, setIdx)}
+                        onDelete={() => deleteSet(exIdx, setIdx)} canDelete={ex.sets.length > 1} />
+                    </div>
+                  )
+                })}
                 <button onClick={() => addSet(exIdx)}
                   className="btn-press w-full mt-1 mb-2 py-2.5 rounded-2xl text-sm font-semibold flex items-center justify-center gap-1.5"
                   style={{ background: '#fff', color: '#888' }}>
