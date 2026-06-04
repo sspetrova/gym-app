@@ -36,7 +36,8 @@ Pick the best substitute. Return ONLY JSON: {"exerciseId": "the_id", "reason": "
 
     // ── Sinas path ──
     if (USE_SINAS) {
-      const chatId = process.env.SINAS_CHAT_ID ?? 'fce364f3-447a-4cff-8f35-6c8b3aef270b'
+      // Use the substitute-specific chat session (separate from workout to avoid context bleed)
+      const chatId = process.env.SINAS_SUBSTITUTE_CHAT_ID ?? process.env.SINAS_CHAT_ID ?? 'fce364f3-447a-4cff-8f35-6c8b3aef270b'
       const headers = {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${SINAS_TOKEN}`,

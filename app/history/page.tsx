@@ -33,10 +33,11 @@ function groupByWeek(workouts: Workout[]) {
   })
 }
 
+const RATING_EMOJIS = ['😴','😐','🙂','😤','🔥']
+
 function WorkoutCard({ workout }: { workout: Workout }) {
   const [open, setOpen] = useState(false)
   const muscleGroups = Array.from(new Set(workout.exercises.flatMap((e) => getExerciseById(e.exerciseId)?.muscleGroups ?? [])))
-  const totalVolume = workout.exercises.reduce((s, ex) => s + ex.sets.filter((set) => set.completed).reduce((ss, set) => ss + set.weightKg * set.reps, 0), 0)
 
   return (
     <div className="rounded-2xl overflow-hidden mb-3 card-shadow" style={{ background: '#fff' }}>
@@ -55,33 +56,58 @@ function WorkoutCard({ workout }: { workout: Workout }) {
               ))}
             </div>
           </div>
-          <div className="text-right ml-3">
+          <div className="text-right ml-3 flex flex-col items-end gap-1">
             <p style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2DD87A' }}>{workout.exercises.length} ex</p>
-            <p style={{ fontSize: '0.75rem', color: '#bbb' }}>{Math.round(totalVolume)} kg</p>
-            <p style={{ fontSize: '1.2rem', color: '#ddd', marginTop: 4 }}>{open ? '▲' : '▼'}</p>
+            {workout.rating && (
+              <span style={{ fontSize: '1.1rem' }}>{RATING_EMOJIS[workout.rating - 1]}</span>
+            )}
+            <p style={{ fontSize: '1.2rem', color: '#ddd', marginTop: 2 }}>{open ? '▲' : '▼'}</p>
           </div>
         </div>
       </button>
 
       {open && (
-        <div className="border-t px-4 pb-4 pt-3 space-y-3 animate-fade-in" style={{ borderColor: '#F2F0EB', opacity: 0 }}>
-          {workout.exercises.map((ex) => {
-            const exercise = getExerciseById(ex.exerciseId)
-            const completedSets = ex.sets.filter((s) => s.completed)
-            if (completedSets.length === 0) return null
-            return (
-              <div key={ex.exerciseId}>
-                <p style={{ fontSize: '0.88rem', fontWeight: 600, marginBottom: 5 }}>{exercise?.name ?? ex.exerciseId}</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {completedSets.map((set, i) => (
-                    <span key={i} className="text-xs px-2.5 py-1 rounded-xl font-medium" style={{ background: '#F2F0EB', color: '#555' }}>
-                      {set.weightKg}kg × {set.reps}
-                    </span>
-                  ))}
-                </div>
+        <div className="border-t px-4 pb-4 pt-3 animate-fade-in" style={{ borderColor: '#F2F0EB', opacity: 0 }}>
+
+          {/* AI reasoning */}
+          {workout.reasoning && (
+            <div className="rounded-2xl p-3 mb-4" style={{ background: '#F0FDF4', border: '1.5px solid #2DD87A' }}>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: '#2DD87A' }} />
+                <p style={{ fontSize: '0.6rem', fontWeight: 700, color: '#16a34a', letterSpacing: '0.15em' }}>AI NOTES</p>
               </div>
-            )
-          })}
+              <p style={{ fontSize: '0.8rem', color: '#555', lineHeight: 1.55 }}>{workout.reasoning}</p>
+            </div>
+          )}
+
+          {/* Exercises */}
+          <div className="space-y-3">
+            {workout.exercises.map((ex) => {
+              const exercise = getExerciseById(ex.exerciseId)
+              const completedSets = ex.sets.filter((s) => s.completed)
+              if (completedSets.length === 0) return null
+              return (
+                <div key={ex.exerciseId}>
+                  <div className="flex items-center justify-between mb-2">
+                    <p style={{ fontSize: '0.88rem', fontWeight: 600 }}>{exercise?.name ?? ex.exerciseId}</p>
+                    <span className="text-xs px-2 py-0.5 rounded-lg font-semibold" style={{ background: '#EDE9F8', color: '#7C5CBF' }}>
+                      {completedSets.length} sets
+                    </span>
+                  </div>
+                  {ex.substituteReason && (
+                    <p style={{ fontSize: '0.72rem', color: '#d97706', marginBottom: 5, fontStyle: 'italic' }}>⚠ {ex.substituteReason}</p>
+                  )}
+                  <div className="flex flex-wrap gap-1.5">
+                    {completedSets.map((set, i) => (
+                      <span key={i} className="text-xs px-2.5 py-1 rounded-xl font-medium" style={{ background: '#F2F0EB', color: '#555' }}>
+                        {set.weightKg}kg × {set.reps}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
     </div>
@@ -129,13 +155,13 @@ export default function History() {
   }, [workouts, chartExercise])
 
   if (!mounted) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#F2F0EB' }}>
-      <div className="w-10 h-10 rounded-full animate-spin" style={{ border: '3px solid #1a1a1a', borderTopColor: 'transparent' }} />
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#F0EEF8' }}>
+      <div className="w-10 h-10 rounded-full animate-spin" style={{ border: '3px solid #7C5CBF', borderTopColor: 'transparent' }} />
     </div>
   )
 
   return (
-    <div className="min-h-screen px-4 pt-10 pb-28" style={{ background: '#F2F0EB' }}>
+    <div className="min-h-screen px-4 pt-10 pb-28" style={{ background: '#F0EEF8' }}>
       <div className="flex items-center justify-between mb-6 animate-slide-up" style={{ opacity: 0 }}>
         <h1 className="font-display" style={{ fontSize: '2.2rem', fontStyle: 'italic' }}>Progress</h1>
         <div className="px-3 py-1.5 rounded-xl text-sm font-semibold card-shadow" style={{ background: '#fff', color: '#1a1a1a' }}>

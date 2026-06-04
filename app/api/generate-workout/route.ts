@@ -8,25 +8,45 @@ const USE_SINAS = !!(SINAS_URL && SINAS_TOKEN)
 
 export async function POST(req: NextRequest) {
   try {
-    const { checkin, history, userGoal } = await req.json()
+    const { checkin, history, userGoal, focusMuscles, userPreferences } = await req.json()
+    const focusText = focusMuscles?.length > 0
+      ? `The user specifically wants to train: ${focusMuscles.join(', ')}. Prioritise these muscle groups.`
+      : 'No specific muscle focus — choose based on history and recovery.'
+
+    const prefsText = userPreferences
+      ? `User profile: name=${userPreferences.name}, favourite splits=${userPreferences.favoriteSplits.join(', ')}, default goal=${userPreferences.defaultGoal}.`
+      : ''
+
+    // Build exercise list filtered to relevant muscles when focus is set
+    const relevantExercises = focusMuscles?.length > 0
+      ? EXERCISES.filter((e) => e.muscleGroups.some((m: string) => focusMuscles.includes(m)))
+      : EXERCISES
+    const exerciseList = relevantExercises.map(
+      (e) => `- id: "${e.id}" | name: "${e.name}" | muscles: ${e.muscleGroups.join(', ')} | equipment: ${e.equipment} | injuryRisk: ${e.injuryRisk.join(', ') || 'none'} | alternatives: ${e.alternatives.join(', ')}`
+    ).join('\n')
 
     // ── Sinas agent path ──
     if (USE_SINAS) {
-      const baseUrl = 'https://via-11.sinas.wearebrain.com:51245'
       const headers = {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${SINAS_TOKEN}`,
       }
 
-      // Use a fixed chat session (pre-created in Sinas dashboard)
-      const chatId = process.env.SINAS_CHAT_ID ?? 'fce364f3-447a-4cff-8f35-6c8b3aef270b'
+      // Use the workout-specific chat session (separate from substitute to avoid context bleed)
+      const chatId = process.env.SINAS_WORKOUT_CHAT_ID ?? process.env.SINAS_CHAT_ID ?? 'fce364f3-447a-4cff-8f35-6c8b3aef270b'
 
-      // Step 2: Send message and collect streamed response
+      // Send message and collect streamed response
       const msgRes = await fetch(`https://via-11.sinas.wearebrain.com/chats/${chatId}/messages/stream`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          content: JSON.stringify({ checkin, history, userGoal, durationMin: checkin.durationMin, yesterdayActivity: checkin.yesterdayActivity }),
+          content: JSON.stringify({
+            checkin, history, userGoal, focusMuscles,
+            durationMin: checkin.durationMin,
+            yesterdayActivity: checkin.yesterdayActivity,
+            userPreferences,
+            availableExercises: exerciseList,
+          }),
         }),
       })
       if (!msgRes.ok) throw new Error(`Sinas message error: ${await msgRes.text()}`)
@@ -53,18 +73,29 @@ export async function POST(req: NextRequest) {
     // ── Direct Claude path ──
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-    const exerciseList = EXERCISES.map(
-      (e) =>
-        `- id: "${e.id}" | name: "${e.name}" | muscles: ${e.muscleGroups.join(', ')} | equipment: ${e.equipment} | injuryRisk: ${e.injuryRisk.join(', ') || 'none'} | alternatives: ${e.alternatives.join(', ')}`
-    ).join('\n')
+    // Build last-weight memory: exerciseId → most recent maxWeightKg
+    type ExSummary = { exerciseId: string; maxWeightKg: number; totalSets: number; avgReps: number; totalVolume: number }
+    type WSession = { date: string; name: string; muscleGroups: string[]; injuries: string[]; exercises: ExSummary[]; rating?: number; recoveryFeedback?: string }
+    const sortedHistory: WSession[] = [...(history as WSession[])].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    const lastWeightMap: Record<string, number> = {}
+    for (const w of sortedHistory) {
+      for (const ex of w.exercises) {
+        if (!(ex.exerciseId in lastWeightMap) && ex.maxWeightKg > 0) {
+          lastWeightMap[ex.exerciseId] = ex.maxWeightKg
+        }
+      }
+    }
+    const lastWeightText = Object.entries(lastWeightMap).length > 0
+      ? 'LAST KNOWN WEIGHTS (use these for lastWeightKg and as base for suggestedWeightKg):\n' +
+        Object.entries(lastWeightMap).map(([id, kg]) => `  ${id}: ${kg}kg`).join('\n')
+      : 'No previous weights on record.'
 
     const historyText =
-      history.length > 0
-        ? history
-            .slice(0, 5)
-            .map(
-              (w: { date: string; name: string; muscleGroups: string[]; injuries: string[]; exercises: { exerciseId: string; maxWeightKg: number }[] }) =>
-                `${w.date.split('T')[0]}: ${w.name} | muscles: ${w.muscleGroups.join(', ')} | injuries: ${w.injuries.join(', ') || 'none'}\n  exercises: ${w.exercises.map((e) => `${e.exerciseId}@${e.maxWeightKg}kg`).join(', ')}`
+      sortedHistory.length > 0
+        ? sortedHistory
+            .slice(0, 6)
+            .map((w) =>
+                `${w.date.split('T')[0]}: ${w.name} | muscles: ${w.muscleGroups.join(', ')} | injuries: ${w.injuries.join(', ') || 'none'}${w.rating ? ` | rating: ${w.rating}/5` : ''}${w.recoveryFeedback ? ` | felt: ${w.recoveryFeedback}` : ''}\n  exercises: ${w.exercises.map((e) => `${e.exerciseId}@${e.maxWeightKg}kg×${e.avgReps}reps×${e.totalSets}sets`).join(', ')}`
             )
             .join('\n')
         : 'No previous workouts'
@@ -94,7 +125,7 @@ Return ONLY:
       messages: [
         {
           role: 'user',
-          content: `Generate a workout.\nEnergy: ${checkin.energy}/5\nSleep: ${checkin.sleep}/5\nSoreness: upper=${checkin.soreness.upper}, lower=${checkin.soreness.lower}, core=${checkin.soreness.core}\nInjuries: ${checkin.injuries.join(', ') || 'none'}\nGoal: ${userGoal}\n\nHistory:\n${historyText}`,
+          content: `Generate a workout.\n${prefsText}\nEnergy: ${checkin.energy}/5\nSleep: ${checkin.sleep}/5\nSoreness: upper=${checkin.soreness.upper}, lower=${checkin.soreness.lower}, core=${checkin.soreness.core}\nInjuries: ${checkin.injuries.join(', ') || 'none'}\nGoal: ${userGoal}\nMuscle focus: ${focusText}\nDuration: ${checkin.durationMin} min\nYesterday: ${checkin.yesterdayActivity}\n\n${lastWeightText}\n\nHistory (newest first):\n${historyText}`,
         },
       ],
     })
@@ -102,7 +133,15 @@ Return ONLY:
     const content = message.content[0]
     if (content.type !== 'text') throw new Error('Unexpected response type')
     const raw = content.text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
-    return NextResponse.json(JSON.parse(raw))
+    const parsed = JSON.parse(raw)
+    // Guarantee lastWeightKg is populated from memory if AI omitted it
+    if (parsed.exercises) {
+      parsed.exercises = parsed.exercises.map((ex: { exerciseId: string; lastWeightKg: number | null }) => ({
+        ...ex,
+        lastWeightKg: ex.lastWeightKg ?? lastWeightMap[ex.exerciseId] ?? null,
+      }))
+    }
+    return NextResponse.json(parsed)
   } catch (err) {
     console.error('generate-workout error:', err)
     return NextResponse.json(

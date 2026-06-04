@@ -3,10 +3,21 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { generateWorkout } from '@/lib/ai'
-import { getWorkoutSummaries, setCurrentWorkout } from '@/lib/storage'
+import { getWorkoutSummaries, setCurrentWorkout, getUserPreferences } from '@/lib/storage'
 import type { CheckIn, Workout } from '@/lib/types'
 
-const INJURIES = ['Shoulder', 'Knee', 'Lower Back', 'Wrist', 'Hip', 'Neck', 'None']
+const INJURIES = ['Shoulder', 'Knee', 'Lower Back', 'Wrist', 'Hip', 'Neck', 'Elbow', 'Ankle', 'None']
+
+const FOCUS_MUSCLES = [
+  { id: 'chest',     icon: '🫀', label: 'Chest' },
+  { id: 'back',      icon: '🔙', label: 'Back' },
+  { id: 'shoulders', icon: '💪', label: 'Shoulders' },
+  { id: 'biceps',    icon: '💪', label: 'Biceps' },
+  { id: 'triceps',   icon: '💪', label: 'Triceps' },
+  { id: 'legs',      icon: '🦵', label: 'Legs' },
+  { id: 'glutes',    icon: '🍑', label: 'Glutes' },
+  { id: 'core',      icon: '⚡', label: 'Core' },
+]
 
 const GOALS = [
   { id: 'strength',    icon: '🏋️', label: 'Strength',    sub: 'Heavy · Low reps',        bg: '#FFFBEB', border: '#F5C842', color: '#d97706' },
@@ -73,6 +84,21 @@ function SorenessBtn({ label, value, onChange }: { label: string; value: number;
   )
 }
 
+// Builds ascending-weight sets: e.g. 25 → 27.5 → 30 instead of flat 30 × 3
+function buildProgressiveSets(targetWeightKg: number, numSets: number, reps: number) {
+  if (!targetWeightKg || targetWeightKg === 0) {
+    return Array.from({ length: numSets }, () => ({ weightKg: 0, reps, completed: false }))
+  }
+  // Increment per step: smaller for light weights, bigger for heavy
+  const increment = targetWeightKg >= 60 ? 5 : targetWeightKg >= 30 ? 2.5 : 2.5
+  return Array.from({ length: numSets }, (_, i) => {
+    const stepsFromEnd = numSets - 1 - i
+    const raw = targetWeightKg - stepsFromEnd * increment
+    const weightKg = Math.max(0, Math.round(raw / 2.5) * 2.5)
+    return { weightKg, reps, completed: false }
+  })
+}
+
 export default function NewWorkout() {
   const router = useRouter()
   const [step, setStep] = useState(0)
@@ -82,6 +108,7 @@ export default function NewWorkout() {
     injuries: [], notes: '',
     durationMin: 60,
     yesterdayActivity: 'rest',
+    focusMuscles: [],
   })
   const [userGoal, setUserGoal] = useState('hypertrophy')
   const [loading, setLoading] = useState(false)
@@ -110,7 +137,9 @@ export default function NewWorkout() {
     const iv = setInterval(() => { setReasoningText(msgs[idx % msgs.length]); idx++ }, 1100)
     try {
       const history = getWorkoutSummaries(8)
-      const generated = await generateWorkout({ checkin, history, userGoal })
+      const prefs = getUserPreferences()
+      const userPreferences = prefs ? { name: prefs.name, favoriteSplits: prefs.favoriteSplits, defaultGoal: prefs.defaultGoal } : undefined
+      const generated = await generateWorkout({ checkin, history, userGoal, focusMuscles: checkin.focusMuscles, userPreferences })
       clearInterval(iv)
       setReasoningText(generated.reasoning)
       const workout: Workout = {
@@ -126,7 +155,7 @@ export default function NewWorkout() {
           suggestedWeightKg: ex.suggestedWeightKg,
           lastWeightKg: ex.lastWeightKg,
           substituteReason: ex.substituteReason,
-          sets: Array.from({ length: ex.sets }, () => ({ weightKg: ex.suggestedWeightKg, reps: ex.reps, completed: false })),
+          sets: buildProgressiveSets(ex.suggestedWeightKg, ex.sets, ex.reps),
         })),
       }
       setCurrentWorkout(workout)
@@ -141,7 +170,7 @@ export default function NewWorkout() {
 
   /* ── STEP 0: Feel + Duration + Yesterday ── */
   if (step === 0) return (
-    <div className="min-h-screen px-4 pt-10 pb-10 animate-slide-up" style={{ background: '#F2F0EB', opacity: 0 }}>
+    <div className="min-h-screen px-4 pt-10 pb-10 animate-slide-up" style={{ background: '#C0E0FF', opacity: 0 }}>
       <button onClick={() => router.push('/')} className="btn-press mb-7 text-sm font-medium" style={{ color: '#888' }}>← Back</button>
 
       <div className="mb-6">
@@ -149,6 +178,49 @@ export default function NewWorkout() {
         <h1 className="font-display" style={{ fontSize: '2.5rem', fontStyle: 'italic', lineHeight: 1.1 }}>
           How are you<br />feeling today?
         </h1>
+      </div>
+
+      {/* What do you want to train? */}
+      <div className="rounded-3xl p-5 mb-4 card-shadow" style={{ background: '#fff' }}>
+        <div className="flex items-center justify-between mb-3">
+          <p style={{ fontSize: '0.9rem', fontWeight: 600 }}>🎯 What do you want to train?</p>
+          {checkin.focusMuscles.length > 0 && (
+            <button onClick={() => setCheckin((c) => ({ ...c, focusMuscles: [] }))}
+              className="text-xs font-medium" style={{ color: '#bbb' }}>
+              Clear
+            </button>
+          )}
+        </div>
+        <p style={{ fontSize: '0.75rem', color: '#bbb', marginBottom: 12 }}>
+          Leave empty and AI will decide based on your history.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {FOCUS_MUSCLES.map((m) => {
+            const active = checkin.focusMuscles.includes(m.id)
+            return (
+              <button key={m.id}
+                onClick={() => setCheckin((c) => ({
+                  ...c,
+                  focusMuscles: active
+                    ? c.focusMuscles.filter((f) => f !== m.id)
+                    : [...c.focusMuscles, m.id],
+                }))}
+                className="btn-press px-4 py-2 rounded-2xl border-2 text-sm font-semibold transition-all duration-200"
+                style={{
+                  background: active ? '#253A82' : '#DAEEFF',
+                  borderColor: active ? '#253A82' : 'transparent',
+                  color: active ? '#fff' : '#555',
+                }}>
+                {m.label}
+              </button>
+            )
+          })}
+        </div>
+        {checkin.focusMuscles.length > 0 && (
+          <p className="mt-3" style={{ fontSize: '0.75rem', color: '#2DD87A', fontWeight: 600 }}>
+            ✓ AI will focus on: {checkin.focusMuscles.join(', ')}
+          </p>
+        )}
       </div>
 
       {/* Energy & Sleep & Soreness */}
@@ -173,10 +245,10 @@ export default function NewWorkout() {
             <button key={d.min} onClick={() => setCheckin((c) => ({ ...c, durationMin: d.min }))}
               className="btn-press py-3 rounded-2xl border-2 text-center transition-all duration-200"
               style={{
-                background: checkin.durationMin === d.min ? '#1a1a1a' : '#F2F0EB',
-                borderColor: checkin.durationMin === d.min ? '#1a1a1a' : 'transparent',
+                background: checkin.durationMin === d.min ? '#253A82' : '#DAEEFF',
+                borderColor: checkin.durationMin === d.min ? '#253A82' : 'transparent',
               }}>
-              <p style={{ fontSize: '0.85rem', fontWeight: 700, color: checkin.durationMin === d.min ? '#fff' : '#1a1a1a' }}>{d.label}</p>
+              <p style={{ fontSize: '0.85rem', fontWeight: 700, color: checkin.durationMin === d.min ? '#fff' : '#253A82' }}>{d.label}</p>
               <p style={{ fontSize: '0.6rem', color: checkin.durationMin === d.min ? 'rgba(255,255,255,0.5)' : '#bbb', marginTop: 2 }}>{d.sub}</p>
             </button>
           ))}
@@ -191,8 +263,8 @@ export default function NewWorkout() {
             <button key={a.id} onClick={() => setCheckin((c) => ({ ...c, yesterdayActivity: a.id }))}
               className="btn-press py-3 rounded-2xl border-2 text-center transition-all duration-200"
               style={{
-                background: checkin.yesterdayActivity === a.id ? '#1a1a1a' : '#F2F0EB',
-                borderColor: checkin.yesterdayActivity === a.id ? '#1a1a1a' : 'transparent',
+                background: checkin.yesterdayActivity === a.id ? '#253A82' : '#DAEEFF',
+                borderColor: checkin.yesterdayActivity === a.id ? '#253A82' : 'transparent',
               }}>
               <p style={{ fontSize: '1.2rem' }}>{a.icon}</p>
               <p style={{ fontSize: '0.62rem', fontWeight: 600, marginTop: 3, color: checkin.yesterdayActivity === a.id ? '#fff' : '#888' }}>{a.label}</p>
@@ -211,7 +283,7 @@ export default function NewWorkout() {
               style={{ background: userGoal === g.id ? g.bg : '#fff', borderColor: userGoal === g.id ? g.border : 'transparent' }}>
               <span className="text-2xl">{g.icon}</span>
               <div>
-                <p style={{ fontWeight: 700, fontSize: '0.95rem', color: userGoal === g.id ? g.color : '#1a1a1a' }}>{g.label}</p>
+                <p style={{ fontWeight: 700, fontSize: '0.95rem', color: userGoal === g.id ? g.color : '#253A82' }}>{g.label}</p>
                 <p style={{ fontSize: '0.75rem', color: '#888', marginTop: 1 }}>{g.sub}</p>
               </div>
               {userGoal === g.id && (
@@ -222,7 +294,7 @@ export default function NewWorkout() {
         </div>
       </div>
 
-      <button onClick={() => setStep(1)} className="btn-press w-full py-4 rounded-2xl text-white font-semibold card-shadow-lg" style={{ background: '#1a1a1a' }}>
+      <button onClick={() => setStep(1)} className="btn-press w-full py-4 rounded-2xl text-white font-semibold card-shadow-lg" style={{ background: '#253A82' }}>
         Next →
       </button>
     </div>
@@ -230,7 +302,7 @@ export default function NewWorkout() {
 
   /* ── STEP 1: Injuries ── */
   if (step === 1) return (
-    <div className="min-h-screen px-4 pt-10 pb-10 animate-slide-left" style={{ background: '#F2F0EB', opacity: 0 }}>
+    <div className="min-h-screen px-4 pt-10 pb-10 animate-slide-left" style={{ background: '#C0E0FF', opacity: 0 }}>
       <button onClick={() => setStep(0)} className="btn-press mb-7 text-sm font-medium" style={{ color: '#888' }}>← Back</button>
 
       <div className="mb-7">
@@ -248,7 +320,7 @@ export default function NewWorkout() {
           return (
             <button key={injury} onClick={() => toggleInjury(injury)}
               className="btn-press px-4 py-2.5 rounded-2xl border-2 font-medium transition-all duration-200 text-sm"
-              style={{ background: active ? '#1a1a1a' : '#fff', borderColor: active ? '#1a1a1a' : '#E8E4DC', color: active ? '#fff' : '#555' }}>
+              style={{ background: active ? '#253A82' : '#fff', borderColor: active ? '#253A82' : '#E8E4DC', color: active ? '#fff' : '#555' }}>
               {injury}
             </button>
           )
@@ -268,22 +340,22 @@ export default function NewWorkout() {
         <div className="flex items-center justify-between">
           <div className="text-center">
             <p style={{ fontSize: '1.3rem' }}>⏱</p>
-            <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1a1a1a' }}>{checkin.durationMin} min</p>
+            <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#253A82' }}>{checkin.durationMin} min</p>
             <p style={{ fontSize: '0.65rem', color: '#bbb' }}>duration</p>
           </div>
           <div className="text-center">
             <p style={{ fontSize: '1.3rem' }}>{YESTERDAY_ACTIVITIES.find(a => a.id === checkin.yesterdayActivity)?.icon}</p>
-            <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1a1a1a' }}>Yesterday</p>
+            <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#253A82' }}>Yesterday</p>
             <p style={{ fontSize: '0.65rem', color: '#bbb' }}>{checkin.yesterdayActivity}</p>
           </div>
           <div className="text-center">
             <p style={{ fontSize: '1.3rem' }}>{GOALS.find(g => g.id === userGoal)?.icon}</p>
-            <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1a1a1a' }}>{GOALS.find(g => g.id === userGoal)?.label}</p>
+            <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#253A82' }}>{GOALS.find(g => g.id === userGoal)?.label}</p>
             <p style={{ fontSize: '0.65rem', color: '#bbb' }}>goal</p>
           </div>
           <div className="text-center">
             <p style={{ fontSize: '1.3rem' }}>{checkin.energy >= 4 ? '🔥' : checkin.energy >= 3 ? '🙂' : '😴'}</p>
-            <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1a1a1a' }}>{checkin.energy}/5</p>
+            <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#253A82' }}>{checkin.energy}/5</p>
             <p style={{ fontSize: '0.65rem', color: '#bbb' }}>energy</p>
           </div>
         </div>
@@ -294,10 +366,10 @@ export default function NewWorkout() {
         <textarea value={checkin.notes} onChange={(e) => setCheckin((c) => ({ ...c, notes: e.target.value }))}
           placeholder="e.g. tight hamstrings, no squat rack available..."
           className="w-full rounded-2xl p-4 text-sm resize-none h-20 focus:outline-none"
-          style={{ background: '#fff', border: '2px solid #E8E4DC', fontFamily: 'DM Sans, sans-serif', color: '#1a1a1a' }} />
+          style={{ background: '#fff', border: '2px solid #E8E4DC', fontFamily: 'DM Sans, sans-serif', color: '#253A82' }} />
       </div>
 
-      <button onClick={handleGenerate} className="btn-press w-full py-4 rounded-2xl text-white font-semibold card-shadow-lg" style={{ background: '#1a1a1a' }}>
+      <button onClick={handleGenerate} className="btn-press w-full py-4 rounded-2xl text-white font-semibold card-shadow-lg" style={{ background: '#253A82' }}>
         ⚡ Build my workout
       </button>
     </div>
@@ -305,7 +377,7 @@ export default function NewWorkout() {
 
   /* ── STEP 2: Loading ── */
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center" style={{ background: '#F2F0EB' }}>
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center" style={{ background: '#C0E0FF' }}>
       <div className="animate-fade-in w-full max-w-sm" style={{ opacity: 0 }}>
         <div className="relative w-32 h-32 mx-auto mb-8">
           <div className="absolute inset-0 rounded-full animate-pulse" style={{ background: '#E8FBF0' }} />

@@ -4,6 +4,8 @@ export async function generateWorkout(input: {
   checkin: CheckIn
   history: WorkoutSummary[]
   userGoal: string
+  focusMuscles?: string[]
+  userPreferences?: { name: string; favoriteSplits: string[]; defaultGoal: string }
 }): Promise<GeneratedWorkout> {
   const res = await fetch('/api/generate-workout', {
     method: 'POST',

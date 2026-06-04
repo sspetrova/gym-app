@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getWorkoutHistory, getPersonalRecords, seedDemoData } from '@/lib/storage'
+import { getWorkoutHistory, getPersonalRecords, seedDemoData, hasCompletedOnboarding, getUserPreferences, getCurrentWeekGoal, setCurrentWeekGoal, markWeeklyGoalAchieved } from '@/lib/storage'
 import { getExerciseById } from '@/lib/exercises'
 import type { Workout } from '@/lib/types'
 
@@ -22,14 +22,14 @@ function WeekStrip({ workouts }: { workouts: Workout[] }) {
       {days.map((d, i) => (
         <button key={i} onClick={() => setSelected(i)}
           className="btn-press flex-1 flex flex-col items-center gap-1.5 py-3 rounded-2xl transition-all duration-200 shadow-card"
-          style={{ background: selected === i ? '#7C5CBF' : '#fff' }}>
-          <span style={{ fontSize: '0.58rem', fontWeight: 700, color: selected === i ? 'rgba(255,255,255,0.6)' : '#C4C0D8', letterSpacing: '0.05em' }}>
+          style={{ background: selected === i ? '#253A82' : '#fff' }}>
+          <span style={{ fontSize: '0.58rem', fontWeight: 700, color: selected === i ? 'rgba(255,255,255,0.6)' : '#88A2FF', letterSpacing: '0.05em' }}>
             {d.label.toUpperCase()}
           </span>
-          <span style={{ fontSize: '1rem', fontWeight: 900, color: selected === i ? '#fff' : '#1a1530' }}>{d.num}</span>
+          <span style={{ fontSize: '1rem', fontWeight: 900, color: selected === i ? '#fff' : '#253A82' }}>{d.num}</span>
           <div style={{
             width: 6, height: 6, borderRadius: '50%',
-            background: d.trained ? (selected === i ? 'rgba(255,255,255,0.8)' : '#4ADE80') : 'transparent'
+            background: d.trained ? (selected === i ? '#E3FC87' : '#88A2FF') : 'transparent'
           }} />
         </button>
       ))}
@@ -37,41 +37,58 @@ function WeekStrip({ workouts }: { workouts: Workout[] }) {
   )
 }
 
-// PR Medal card
-function PRCard({ rank, exerciseName, weight, delay }: { rank: number; exerciseName: string; weight: number; delay: number }) {
-  const configs = [
-    { medal: '🥇', bg: 'linear-gradient(135deg,#F5A623,#F59E0B)', shadow: '0 8px 24px rgba(245,166,35,0.4)' },
-    { medal: '🥈', bg: 'linear-gradient(135deg,#9CA3AF,#6B7280)', shadow: '0 8px 24px rgba(156,163,175,0.4)' },
-    { medal: '🥉', bg: 'linear-gradient(135deg,#FB923C,#C2410C)', shadow: '0 8px 24px rgba(251,146,60,0.4)' },
-  ]
-  const c = configs[rank] ?? configs[2]
-  return (
-    <div className="animate-pop-in rounded-3xl p-5 flex flex-col items-center text-center flex-shrink-0"
-      style={{ opacity: 0, animationDelay: `${delay}ms`, background: c.bg, boxShadow: c.shadow, width: 150, minHeight: 160 }}>
-      <span className="animate-wobble" style={{ fontSize: '2.5rem', display: 'block', marginBottom: 8 }}>{c.medal}</span>
-      <p className="dc" style={{ fontSize: '1.8rem', color: '#fff', lineHeight: 1 }}>{weight}<span style={{ fontSize: '0.9rem', opacity: 0.8 }}> kg</span></p>
-      <p style={{ fontSize: '0.7rem', fontWeight: 700, color: 'rgba(255,255,255,0.75)', marginTop: 6, lineHeight: 1.3 }}>{exerciseName}</p>
-    </div>
-  )
-}
 
 export default function Dashboard() {
   const router = useRouter()
   const [workouts, setWorkouts] = useState<Workout[]>([])
   const [prs, setPrs] = useState<Record<string, number>>({})
+  const [weightDelta, setWeightDelta] = useState<number | null>(null)
+  const [weeklyGoal, setWeeklyGoalState] = useState<{ goal: string; achieved: boolean } | null>(null)
+  const [goalInput, setGoalInput] = useState('')
+  const [editingGoal, setEditingGoal] = useState(false)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    if (!hasCompletedOnboarding()) { router.replace('/onboarding'); return }
     seedDemoData()
     setWorkouts(getWorkoutHistory(20))
     setPrs(getPersonalRecords())
+    const goal = getCurrentWeekGoal()
+    setWeeklyGoalState(goal)
+    if (goal) setGoalInput(goal.goal)
     setMounted(true)
-  }, [])
+  }, [router])
 
   const lastWorkout = workouts[0]
-  const totalVolume = lastWorkout
-    ? lastWorkout.exercises.reduce((s, ex) => s + ex.sets.filter(x => x.completed).reduce((ss, set) => ss + set.weightKg * set.reps, 0), 0)
-    : 0
+
+  // Best weight improvement: scan all history for any exercise that went up
+  const bestImprovement = (() => {
+    if (workouts.length < 2) return null
+    // Build map: exerciseId → sorted list of (date, maxWeight)
+    const byEx: Record<string, { date: string; max: number }[]> = {}
+    for (const w of workouts) {
+      for (const ex of w.exercises) {
+        const max = Math.max(...ex.sets.filter(s => s.completed).map(s => s.weightKg), 0)
+        if (max === 0) continue
+        if (!byEx[ex.exerciseId]) byEx[ex.exerciseId] = []
+        byEx[ex.exerciseId].push({ date: w.date, max })
+      }
+    }
+    let best: { name: string; from: number; to: number; diff: number } | null = null
+    for (const [id, entries] of Object.entries(byEx)) {
+      if (entries.length < 2) continue
+      // Sort oldest → newest
+      const sorted = entries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      const newest = sorted[sorted.length - 1].max
+      const previous = sorted[sorted.length - 2].max
+      const diff = newest - previous
+      if (diff > 0 && (!best || diff > best.diff)) {
+        const exInfo = getExerciseById(id)
+        best = { name: exInfo?.name ?? id, from: previous, to: newest, diff }
+      }
+    }
+    return best
+  })()
 
   const topPrs = Object.entries(prs).sort(([, a], [, b]) => b - a).slice(0, 3)
 
@@ -80,24 +97,44 @@ export default function Dashboard() {
     return workouts.filter(w => new Date(w.date) > cutoff).length
   })()
 
+  // Real consecutive-day streak (same logic as progress tab)
+  const streak = (() => {
+    const trainedDates = new Set(workouts.map(w => w.date.split('T')[0]))
+    let count = 0
+    const today = new Date()
+    for (let i = 0; i < 365; i++) {
+      const d = new Date(today); d.setDate(today.getDate() - i)
+      const key = d.toISOString().split('T')[0]
+      if (trainedDates.has(key)) {
+        count++
+      } else if (i > 0) {
+        // Allow today to be rest day — check if yesterday started the streak
+        break
+      }
+    }
+    return count
+  })()
+
   const hour = new Date().getHours()
-  const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening'
+  const timeGreeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : hour < 21 ? 'Good Evening' : 'Good Night'
+  const userName = getUserPreferences()?.name
+  const greeting = userName ? `${timeGreeting}, ${userName}` : timeGreeting
 
   if (!mounted) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#F0EEF8' }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#C0E0FF' }}>
       <div className="w-10 h-10 rounded-full animate-spin" style={{ border: '3px solid #7C5CBF', borderTopColor: 'transparent' }} />
     </div>
   )
 
   return (
-    <div className="min-h-screen pb-28" style={{ background: '#F0EEF8' }}>
+    <div className="min-h-screen pb-28" style={{ background: '#C0E0FF' }}>
 
       {/* Header */}
       <div className="px-5 pt-12 pb-4">
         <div className="flex items-center justify-between animate-slide-up" style={{ opacity: 0 }}>
           <div>
-            <p style={{ fontSize: '0.8rem', color: '#9895B0', fontWeight: 600 }}>{greeting} 👋</p>
-            <h1 style={{ fontFamily: 'Nunito,sans-serif', fontSize: '1.8rem', fontWeight: 900, color: '#1a1530', lineHeight: 1.1, marginTop: 2 }}>
+            <p style={{ fontSize: '0.8rem', color: '#4A6FA5', fontWeight: 600 }}>{greeting} 👋</p>
+            <h1 style={{ fontFamily: 'Nunito,sans-serif', fontSize: '1.8rem', fontWeight: 900, color: '#253A82', lineHeight: 1.1, marginTop: 2 }}>
               Ready to crush it?
             </h1>
           </div>
@@ -114,7 +151,7 @@ export default function Dashboard() {
         {/* ── HERO — Daily Challenge card ── */}
         <button onClick={() => router.push('/workout/new')}
           className="btn-press w-full rounded-3xl overflow-hidden relative shadow-card-lg animate-slide-up"
-          style={{ opacity: 0, animationDelay: '60ms', background: 'linear-gradient(135deg,#7C5CBF 0%,#9B6FE0 50%,#A78BFA 100%)', minHeight: 160 }}>
+          style={{ opacity: 0, animationDelay: '60ms', background: 'linear-gradient(135deg,#253A82 0%,#88A2FF 100%)', minHeight: 160 }}>
           {/* Floating shapes */}
           <div className="absolute animate-float" style={{ top: -10, right: 20, fontSize: '4rem', opacity: 0.6 }}>🏋️</div>
           <div className="absolute animate-float2" style={{ top: 30, right: 80, fontSize: '1.5rem', opacity: 0.4 }}>⚡</div>
@@ -131,7 +168,7 @@ export default function Dashboard() {
             </p>
             <div className="flex items-center gap-2 mt-4">
               <div className="px-4 py-2 rounded-2xl font-bold text-sm"
-                style={{ background: '#fff', color: '#7C5CBF' }}>
+                style={{ background: '#E3FC87', color: '#253A82' }}>
                 Build my session →
               </div>
               <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)' }}>AI adapts to you</p>
@@ -144,121 +181,167 @@ export default function Dashboard() {
           <WeekStrip workouts={workouts} />
         </div>
 
-        {/* ── Stats row ── */}
+        {/* ── Goal + Streak ── */}
         <div className="grid grid-cols-2 gap-3 animate-slide-up" style={{ opacity: 0, animationDelay: '165ms' }}>
-          <div className="rounded-3xl p-5 shadow-card-lg relative overflow-hidden"
-            style={{ background: 'linear-gradient(135deg,#F5A623,#F59E0B)', minHeight: 120 }}>
-            <div className="absolute animate-float2" style={{ top: -5, right: -5, fontSize: '3rem', opacity: 0.3 }}>💥</div>
-            <p style={{ fontSize: '0.62rem', fontWeight: 800, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.12em', marginBottom: 8 }}>LAST VOL</p>
-            <p className="dc" style={{ fontSize: '2.8rem', color: '#fff', lineHeight: 1 }}>
-              {lastWorkout ? Math.round(totalVolume) : '—'}
-              <span style={{ fontSize: '1rem', opacity: 0.7, marginLeft: 3 }}>kg</span>
-            </p>
+
+          {/* Weekly goal — purple */}
+          <div className="rounded-3xl p-4 shadow-card-lg relative overflow-hidden col-span-1"
+            style={{ background: weeklyGoal?.achieved ? 'linear-gradient(135deg,#253A82,#88A2FF)' : 'linear-gradient(135deg,#88A2FF,#AB9DFF)', minHeight: 130 }}>
+            <div className="absolute" style={{ top: 6, right: 10, fontSize: '2rem', opacity: 0.2 }}>🎯</div>
+            <p style={{ fontSize: '0.58rem', fontWeight: 800, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.15em', marginBottom: 6 }}>THIS WEEK</p>
+
+            {weeklyGoal && !editingGoal ? (
+              <div>
+                <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>
+                  {weeklyGoal.achieved ? '✅ ' : ''}{weeklyGoal.goal}
+                </p>
+                {streak >= 3 && (
+                  <p style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.7)', marginTop: 3 }}>🔥 {streak} day streak</p>
+                )}
+                <div className="flex gap-2 mt-3">
+                  {!weeklyGoal.achieved && (
+                    <button onClick={() => { markWeeklyGoalAchieved(); setWeeklyGoalState((g) => g ? { ...g, achieved: true } : g) }}
+                      className="btn-press px-2.5 py-1.5 rounded-xl text-xs font-bold"
+                      style={{ background: 'rgba(255,255,255,0.25)', color: '#fff' }}>Done ✓</button>
+                  )}
+                  <button onClick={() => setEditingGoal(true)}
+                    className="btn-press px-2.5 py-1.5 rounded-xl text-xs font-medium"
+                    style={{ background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.8)' }}>Edit</button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                {!weeklyGoal && <p style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.65)', marginBottom: 8 }}>Set your goal</p>}
+                <div className="flex gap-2">
+                  <input type="text" placeholder="e.g. pull up…" value={goalInput}
+                    onChange={(e) => setGoalInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && goalInput.trim()) { setCurrentWeekGoal(goalInput.trim()); setWeeklyGoalState({ goal: goalInput.trim(), achieved: false }); setEditingGoal(false) }}}
+                    className="flex-1 rounded-xl px-2.5 py-2 text-sm font-medium focus:outline-none"
+                    style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: '1.5px solid rgba(255,255,255,0.3)', fontFamily: 'DM Sans, sans-serif' }} />
+                  <button onClick={() => { if (!goalInput.trim()) return; setCurrentWeekGoal(goalInput.trim()); setWeeklyGoalState({ goal: goalInput.trim(), achieved: false }); setEditingGoal(false) }}
+                    className="btn-press px-3 rounded-xl text-sm font-bold"
+                    style={{ background: 'rgba(255,255,255,0.25)', color: '#fff' }}>Set</button>
+                </div>
+                {editingGoal && <button onClick={() => setEditingGoal(false)} className="mt-2 text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Cancel</button>}
+              </div>
+            )}
           </div>
-          <div className="rounded-3xl p-5 shadow-card-lg relative overflow-hidden"
-            style={{ background: 'linear-gradient(135deg,#5BC4F5,#0EA5E9)', minHeight: 120 }}>
-            <div className="absolute animate-float" style={{ top: 5, right: 5, fontSize: '2.5rem', opacity: 0.3 }}>📅</div>
-            <p style={{ fontSize: '0.62rem', fontWeight: 800, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.12em', marginBottom: 8 }}>THIS WEEK</p>
-            <p className="dc" style={{ fontSize: '2.8rem', color: '#fff', lineHeight: 1 }}>
-              {daysThisWeek}
-              <span style={{ fontSize: '1rem', opacity: 0.7, marginLeft: 3 }}>days</span>
+
+          {/* Streak — always blue */}
+          <div className="rounded-3xl p-4 shadow-card-lg relative overflow-hidden col-span-1"
+            style={{ background: 'linear-gradient(135deg,#E3FC87,#C8F060)', minHeight: 130 }}>
+            <div className="absolute" style={{ top: 6, right: 8, fontSize: '2rem', opacity: 0.35 }}>🔥</div>
+            <p style={{ fontSize: '0.58rem', fontWeight: 800, color: 'rgba(37,58,130,0.55)', letterSpacing: '0.12em', marginBottom: 6 }}>STREAK</p>
+            <p className="dc" style={{ fontSize: '3rem', color: '#253A82', lineHeight: 1 }}>
+              {streak}<span style={{ fontSize: '0.9rem', opacity: 0.6, marginLeft: 3 }}>days</span>
             </p>
-            <div className="flex gap-1 mt-2">
-              {Array.from({ length: 7 }, (_, i) => (
-                <div key={i} className="flex-1 h-1.5 rounded-full"
-                  style={{ background: i < daysThisWeek ? '#fff' : 'rgba(255,255,255,0.2)' }} />
-              ))}
-            </div>
+            <p style={{ fontSize: '0.65rem', color: 'rgba(37,58,130,0.55)', marginTop: 6 }}>
+              {streak === 0 ? 'Start today, you got this!' : streak <= 2 ? `${streak} day${streak > 1 ? 's' : ''} — keep going! 💪` : `${streak} days in a row 🔥`}
+            </p>
           </div>
         </div>
 
-        {/* ── PRs — BIG SECTION ── */}
+        {/* ── Personal Records — 3 horizontal blocks ── */}
         {topPrs.length > 0 && (
           <div className="animate-slide-up" style={{ opacity: 0, animationDelay: '220ms' }}>
             <div className="flex items-center justify-between mb-3">
-              <p style={{ fontSize: '1rem', fontWeight: 900, color: '#1a1530' }}>Personal Records 🏆</p>
-              <p style={{ fontSize: '0.75rem', color: '#9895B0', fontWeight: 600 }}>{topPrs.length} PRs</p>
+              <p style={{ fontSize: '1rem', fontWeight: 900, color: '#253A82' }}>Personal Records 🏆</p>
+              <p style={{ fontSize: '0.75rem', color: '#4A6FA5', fontWeight: 600 }}>{topPrs.length} PRs</p>
             </div>
-            <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
-              {topPrs.map(([exId, weight], idx) => (
-                <PRCard key={exId} rank={idx}
-                  exerciseName={getExerciseById(exId)?.name ?? exId}
-                  weight={weight} delay={idx * 80} />
+            <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(topPrs.length, 3)}, 1fr)` }}>
+              {topPrs.map(([exId, weight], idx) => {
+                const configs = [
+                  { medal: '🥇', bg: '#E3FC87', textColor: '#253A82', shadow: '0 8px 20px rgba(227,252,135,0.5)' },
+                  { medal: '🥈', bg: '#88A2FF', textColor: '#fff', shadow: '0 8px 20px rgba(136,162,255,0.4)' },
+                  { medal: '🥉', bg: '#AB9DFF', textColor: '#fff', shadow: '0 8px 20px rgba(171,157,255,0.4)' },
+                ]
+                const c = configs[idx] ?? configs[2]
+                const name = getExerciseById(exId)?.name ?? exId
+                return (
+                  <div key={exId} className="rounded-3xl p-4 flex flex-col items-center text-center"
+                    style={{ background: c.bg, boxShadow: c.shadow }}>
+                    <span style={{ fontSize: '2rem', marginBottom: 6 }}>{c.medal}</span>
+                    <p style={{ fontSize: '1.5rem', fontWeight: 900, color: c.textColor, lineHeight: 1 }}>
+                      {weight}<span style={{ fontSize: '0.7rem', opacity: 0.7 }}>kg</span>
+                    </p>
+                    <p style={{ fontSize: '0.62rem', fontWeight: 700, color: c.textColor, opacity: 0.75, marginTop: 5, lineHeight: 1.3, textAlign: 'center' }}>
+                      {name}
+                    </p>
+                  </div>
+                )
+              })}
+              {/* Placeholder slots if fewer than 3 PRs */}
+              {Array.from({ length: Math.max(0, 3 - topPrs.length) }).map((_, i) => (
+                <div key={`empty-${i}`} className="rounded-3xl p-4 flex flex-col items-center justify-center text-center"
+                  style={{ background: '#A8CFEE', minHeight: 120 }}>
+                  <span style={{ fontSize: '1.5rem', opacity: 0.4 }}>💪</span>
+                  <p style={{ fontSize: '0.65rem', color: '#4A6FA5', marginTop: 6, fontWeight: 600 }}>Train more</p>
+                </div>
               ))}
-              {/* Add more exercises teaser */}
-              <div className="flex-shrink-0 rounded-3xl p-5 flex flex-col items-center justify-center shadow-card"
-                style={{ background: '#fff', width: 130, minHeight: 160 }}>
-                <p style={{ fontSize: '2rem' }}>💪</p>
-                <p style={{ fontSize: '0.7rem', fontWeight: 700, color: '#9895B0', textAlign: 'center', marginTop: 8 }}>Train more to unlock PRs</p>
-              </div>
             </div>
           </div>
         )}
 
-        {/* ── Last session ── */}
+        {/* ── Last session — dark indigo outer, rose + amber inner ── */}
         {lastWorkout && (
           <div className="animate-slide-up" style={{ opacity: 0, animationDelay: '300ms' }}>
-            <p style={{ fontSize: '1rem', fontWeight: 900, color: '#1a1530', marginBottom: 10 }}>Last Session</p>
-            <div className="grid grid-cols-2 gap-3">
-              {/* Main session card */}
-              <div className="rounded-3xl p-5 shadow-card-lg col-span-1 relative overflow-hidden"
-                style={{ background: 'linear-gradient(135deg,#4ADE80,#16A34A)' }}>
-                <div className="absolute animate-float" style={{ bottom: -5, right: -10, fontSize: '4rem', opacity: 0.2 }}>🏃</div>
-                <div className="inline-flex px-2 py-1 rounded-xl text-xs font-bold mb-3"
-                  style={{ background: 'rgba(255,255,255,0.25)', color: '#fff' }}>
-                  Completed ✓
+            <p style={{ fontSize: '1rem', fontWeight: 900, color: '#253A82', marginBottom: 10 }}>Last Session</p>
+            <div className="rounded-3xl overflow-hidden shadow-card-lg"
+              style={{ background: 'linear-gradient(135deg,#253A82,#1E2E6B)' }}>
+              {/* Workout info */}
+              <div className="px-5 pt-5 pb-4">
+                <div className="inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-bold mb-3"
+                  style={{ background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.9)' }}>
+                  ✓ Completed
                 </div>
-                <p className="dc" style={{ fontSize: '1.2rem', color: '#fff', lineHeight: 1.1 }}>{lastWorkout.name}</p>
-                <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', marginTop: 6 }}>
-                  {new Date(lastWorkout.date).toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' })}
+                <p style={{ fontFamily: 'Nunito,sans-serif', fontSize: '1.25rem', fontWeight: 900, color: '#fff', lineHeight: 1.2 }}>
+                  {lastWorkout.name}
                 </p>
-                <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fff', marginTop: 4 }}>
-                  {lastWorkout.exercises.length} exercises
+                <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>
+                  {new Date(lastWorkout.date).toLocaleDateString('en', { weekday: 'long', month: 'short', day: 'numeric' })}
+                  {' · '}{lastWorkout.exercises.length} exercises
                 </p>
               </div>
 
-              {/* Stats mini cards */}
-              <div className="flex flex-col gap-3">
-                <div className="rounded-2xl p-4 shadow-card flex-1"
-                  style={{ background: 'linear-gradient(135deg,#F472B6,#DB2777)' }}>
-                  <p style={{ fontSize: '0.6rem', fontWeight: 800, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.1em' }}>VOLUME</p>
-                  <p className="dc" style={{ fontSize: '1.4rem', color: '#fff' }}>{Math.round(totalVolume)}<span style={{ fontSize: '0.7rem', opacity: 0.8 }}> kg</span></p>
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '0 20px' }} />
+
+              {/* Rating (rose) + Improvement (amber) */}
+              <div className="grid grid-cols-2 gap-3 px-4 pb-4 pt-3">
+                <div className="rounded-2xl p-3" style={{ background: '#FFB2F7' }}>
+                  <p style={{ fontSize: '0.55rem', fontWeight: 800, color: 'rgba(37,58,130,0.5)', letterSpacing: '0.15em', marginBottom: 6 }}>RATING</p>
+                  {lastWorkout.rating ? (
+                    <>
+                      <span style={{ fontSize: '1.8rem', lineHeight: 1, display: 'block' }}>
+                        {['😴','😐','🙂','😤','🔥'][lastWorkout.rating - 1]}
+                      </span>
+                      <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#253A82', marginTop: 4 }}>
+                        {['Weak','Meh','Good','Strong','Beast'][lastWorkout.rating - 1]}
+                      </p>
+                    </>
+                  ) : (
+                    <p style={{ fontSize: '0.8rem', color: 'rgba(37,58,130,0.45)', marginTop: 4 }}>Not rated</p>
+                  )}
                 </div>
-                <div className="rounded-2xl p-4 shadow-card flex-1"
-                  style={{ background: 'linear-gradient(135deg,#2DD4BF,#0D9488)' }}>
-                  <p style={{ fontSize: '0.6rem', fontWeight: 800, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.1em' }}>SETS</p>
-                  <p className="dc" style={{ fontSize: '1.4rem', color: '#fff' }}>
-                    {lastWorkout.exercises.reduce((s, ex) => s + ex.sets.filter(x => x.completed).length, 0)}
-                    <span style={{ fontSize: '0.7rem', opacity: 0.8 }}> done</span>
-                  </p>
+                <div className="rounded-2xl p-3" style={{ background: '#E3FC87' }}>
+                  <p style={{ fontSize: '0.55rem', fontWeight: 800, color: 'rgba(37,58,130,0.5)', letterSpacing: '0.15em', marginBottom: 6 }}>IMPROVEMENT</p>
+                  {bestImprovement ? (
+                    <>
+                      <p style={{ fontSize: '1.5rem', fontWeight: 900, color: '#253A82', lineHeight: 1 }}>
+                        +{bestImprovement.to - bestImprovement.from}kg
+                      </p>
+                      <p style={{ fontSize: '0.65rem', color: 'rgba(37,58,130,0.65)', marginTop: 3, lineHeight: 1.3 }}>
+                        {bestImprovement.name}
+                      </p>
+                    </>
+                  ) : (
+                    <p style={{ fontSize: '0.8rem', color: 'rgba(37,58,130,0.45)', marginTop: 4 }}>Keep going!</p>
+                  )}
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* ── Motivational card ── */}
-        <div className="rounded-3xl p-5 shadow-card animate-slide-up"
-          style={{ opacity: 0, animationDelay: '360ms', background: '#fff' }}>
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl animate-pulse-s shadow-card"
-              style={{ background: 'linear-gradient(135deg,#F0EEF8,#E8E4F8)', flexShrink: 0 }}>
-              {daysThisWeek >= 5 ? '🏆' : daysThisWeek >= 3 ? '🌟' : '🎯'}
-            </div>
-            <div>
-              <p style={{ fontWeight: 900, fontSize: '0.95rem', color: '#1a1530' }}>
-                {daysThisWeek >= 5 ? 'You\'re on fire!' : daysThisWeek >= 3 ? 'Great momentum!' : 'Every rep counts!'}
-              </p>
-              <p style={{ fontSize: '0.8rem', color: '#9895B0', marginTop: 2, lineHeight: 1.4 }}>
-                {daysThisWeek >= 5
-                  ? `${daysThisWeek} days this week. Keep the streak alive! 🔥`
-                  : daysThisWeek >= 3
-                  ? `${daysThisWeek}/7 days trained. Push for more!`
-                  : 'Start a session today to build your streak.'}
-              </p>
-            </div>
-          </div>
-        </div>
 
       </div>
     </div>

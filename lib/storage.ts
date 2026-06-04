@@ -1,8 +1,10 @@
-import type { Workout, WorkoutSummary } from './types'
+import type { Workout, WorkoutSummary, UserPreferences, WeeklyGoal } from './types'
 import { getExerciseById } from './exercises'
 
 const STORAGE_KEY = 'gym_ai_workouts'
 const SEEDED_KEY = 'gym_ai_seeded'
+const PREFS_KEY = 'gym_ai_prefs'
+const ONBOARDED_KEY = 'gym_ai_onboarded'
 
 // ─── Core helpers ────────────────────────────────────────────────────────────
 
@@ -95,12 +97,17 @@ export function getWorkoutSummaries(limit = 10): WorkoutSummary[] {
       date: w.date,
       name: w.name,
       muscleGroups,
-      exercises: w.exercises.map((e) => ({
-        exerciseId: e.exerciseId,
-        maxWeightKg: Math.max(...e.sets.filter((s) => s.completed).map((s) => s.weightKg), 0),
-        totalSets: e.sets.filter((s) => s.completed).length,
-      })),
+      exercises: w.exercises.map((e) => {
+        const done = e.sets.filter((s) => s.completed)
+        const totalSets = done.length
+        const maxWeightKg = Math.max(...done.map((s) => s.weightKg), 0)
+        const avgReps = totalSets > 0 ? Math.round(done.reduce((sum, s) => sum + s.reps, 0) / totalSets) : 0
+        const totalVolume = done.reduce((sum, s) => sum + s.weightKg * s.reps, 0)
+        return { exerciseId: e.exerciseId, maxWeightKg, totalSets, avgReps, totalVolume }
+      }),
       injuries: w.injuries,
+      rating: w.rating,
+      recoveryFeedback: w.recoveryFeedback,
     }
   })
 }
@@ -122,6 +129,98 @@ export function setCurrentWorkout(workout: Workout): void {
 export function clearCurrentWorkout(): void {
   if (typeof window === 'undefined') return
   localStorage.removeItem('current_workout')
+}
+
+// ─── User preferences / onboarding ───────────────────────────────────────────
+
+export function getUserPreferences(): UserPreferences | null {
+  if (typeof window === 'undefined') return null
+  try {
+    return JSON.parse(localStorage.getItem(PREFS_KEY) || 'null')
+  } catch {
+    return null
+  }
+}
+
+export function setUserPreferences(prefs: UserPreferences): void {
+  if (typeof window === 'undefined') return
+  localStorage.setItem(PREFS_KEY, JSON.stringify(prefs))
+}
+
+export function hasCompletedOnboarding(): boolean {
+  if (typeof window === 'undefined') return false
+  return !!localStorage.getItem(ONBOARDED_KEY)
+}
+
+export function completeOnboarding(): void {
+  if (typeof window === 'undefined') return
+  localStorage.setItem(ONBOARDED_KEY, '1')
+}
+
+// ─── Weekly goal ─────────────────────────────────────────────────────────────
+
+const GOALS_KEY = 'gym_ai_weekly_goals'
+
+function currentWeekKey(): string {
+  const d = new Date()
+  const jan1 = new Date(d.getFullYear(), 0, 1)
+  const week = Math.ceil(((d.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7)
+  return `${d.getFullYear()}-W${String(week).padStart(2, '0')}`
+}
+
+export function getWeeklyGoals(): WeeklyGoal[] {
+  if (typeof window === 'undefined') return []
+  try { return JSON.parse(localStorage.getItem(GOALS_KEY) || '[]') } catch { return [] }
+}
+
+export function getCurrentWeekGoal(): WeeklyGoal | null {
+  const key = currentWeekKey()
+  return getWeeklyGoals().find((g) => g.week === key) ?? null
+}
+
+export function setCurrentWeekGoal(goal: string): void {
+  if (typeof window === 'undefined') return
+  const key = currentWeekKey()
+  const all = getWeeklyGoals().filter((g) => g.week !== key)
+  all.push({ week: key, goal, achieved: false })
+  localStorage.setItem(GOALS_KEY, JSON.stringify(all))
+}
+
+export function markWeeklyGoalAchieved(): void {
+  if (typeof window === 'undefined') return
+  const key = currentWeekKey()
+  const all = getWeeklyGoals().map((g) => g.week === key ? { ...g, achieved: true } : g)
+  localStorage.setItem(GOALS_KEY, JSON.stringify(all))
+}
+
+// ─── Weight progression helpers ───────────────────────────────────────────────
+
+export function getAvgWeightProgression(): number | null {
+  if (typeof window === 'undefined') return null
+  const now = new Date()
+  const thisWeekStart = new Date(now); thisWeekStart.setDate(now.getDate() - 7)
+  const lastWeekStart = new Date(now); lastWeekStart.setDate(now.getDate() - 14)
+
+  const all = loadWorkouts().filter((w) => w.completed)
+  const thisWeek = all.filter((w) => new Date(w.date) >= thisWeekStart)
+  const lastWeek = all.filter((w) => new Date(w.date) >= lastWeekStart && new Date(w.date) < thisWeekStart)
+
+  function avgMaxWeight(workouts: Workout[]): number | null {
+    const weights: number[] = []
+    for (const w of workouts) {
+      for (const ex of w.exercises) {
+        const max = Math.max(...ex.sets.filter((s) => s.completed).map((s) => s.weightKg), 0)
+        if (max > 0) weights.push(max)
+      }
+    }
+    if (weights.length === 0) return null
+    return weights.reduce((a, b) => a + b, 0) / weights.length
+  }
+
+  const thisAvg = avgMaxWeight(thisWeek)
+  const lastAvg = avgMaxWeight(lastWeek)
+  if (thisAvg == null || lastAvg == null) return null
+  return Math.round((thisAvg - lastAvg) * 10) / 10
 }
 
 // ─── Seed data ───────────────────────────────────────────────────────────────

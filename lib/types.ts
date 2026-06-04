@@ -22,6 +22,14 @@ export type Workout = {
   completed: boolean
   injuries: string[]
   userGoal: string
+  rating?: number           // 1–5 post-session rating
+  recoveryFeedback?: string // e.g. 'great' | 'tough' | 'overworked' | 'easy'
+}
+
+export type WeeklyGoal = {
+  week: string    // ISO week key e.g. "2026-W23"
+  goal: string
+  achieved: boolean
 }
 
 export type CheckIn = {
@@ -32,6 +40,7 @@ export type CheckIn = {
   notes: string
   durationMin: number  // 30 | 45 | 60 | 90
   yesterdayActivity: string  // e.g. 'rest' | 'running' | 'cycling' | 'football' | 'swimming' | 'yoga'
+  focusMuscles: string[]    // e.g. ['chest', 'triceps'] — empty means AI decides
 }
 
 export type GeneratedExercise = {
@@ -54,6 +63,22 @@ export type WorkoutSummary = {
   date: string
   name: string
   muscleGroups: string[]
-  exercises: { exerciseId: string; maxWeightKg: number; totalSets: number }[]
+  exercises: {
+    exerciseId: string
+    maxWeightKg: number
+    totalSets: number
+    avgReps: number
+    totalVolume: number
+  }[]
   injuries: string[]
+  durationMin?: number
+  rating?: number
+  recoveryFeedback?: string
+}
+
+export type UserPreferences = {
+  name: string
+  favoriteSplits: string[]    // e.g. ['push_pull_legs', 'upper_lower']
+  favoriteExercises: string[] // exercise IDs
+  defaultGoal: string         // 'strength' | 'hypertrophy' | 'endurance'
 }
